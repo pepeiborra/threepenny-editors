@@ -1,0 +1,29 @@
+name:                threepenny-forms
+version:             0.1.0.0
+synopsis:            Composable algebraic editors
+description:         Please see Readme.md
+homepage:            https://github.com/pepeiborra/threepenny-forms#readme
+license:             BSD3
+author:              Jose Iborra
+maintainer:          pepeiborra@gmail.com
+copyright:           All Rights Reserved
+category:            Web
+extra-source-files:
+- README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - profunctors
+  - threepenny-gui > 0.7
+
+library:
+  source-dirs: 	src
+  exposed-modules:
+    - Graphics.UI.Threepenny.Editors
+  ghc-options: -Wall -fno-warn-name-shadowing
+
+executables:
+  example:
+    source-dirs:  src
+    main: Main.hs
+    ghc-options: -Wall -fno-warn-name-shadowing
