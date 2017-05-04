@@ -1,4 +1,4 @@
-name:                threepenny-forms
+name:                threepenny-editors
 version:             0.1.0.0
 synopsis:            Composable algebraic editors
 description:         Please see Readme.md
@@ -10,20 +10,33 @@ copyright:           All Rights Reserved
 category:            Web
 extra-source-files:
 - README.md
+ghc-options: -Wall -Wno-name-shadowing
 
-dependencies:
-  - base >= 4.7 && < 5
-  - profunctors
-  - threepenny-gui > 0.7
+flags:
+  buildExamples:
+    description: build the examples
+    default: False
+    manual : True
 
 library:
   source-dirs: 	src
   exposed-modules:
     - Graphics.UI.Threepenny.Editors
-  ghc-options: -Wall -fno-warn-name-shadowing
+  dependencies:
+    - base >= 4.7 && < 5
+    - profunctors
+    - threepenny-gui > 0.7
 
 executables:
-  example:
-    source-dirs:  src
-    main: Main.hs
-    ghc-options: -Wall -fno-warn-name-shadowing
+  person:
+    source-dirs:  examples
+    main: Person.hs
+    when:
+      condition: flag(buildExamples)
+      then:
+        dependencies:
+          - base
+          - threepenny-gui
+          - threepenny-editors
+      else: 
+        buildable: False

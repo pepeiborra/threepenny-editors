@@ -1,7 +1,5 @@
 {-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Main where
-
 import           Control.Monad
 import           Data.Maybe
 import           Graphics.UI.Threepenny.Core
