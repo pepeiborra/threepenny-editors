@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecursiveDo       #-}
@@ -137,7 +138,7 @@ instance Editable () where
     t <- new
     return $ Editor (tidings b never) (getElement t)
 
-instance Editable [Char] where
+instance a ~ Char => Editable [a] where
   editor b = do
     t <- entry b
     return $ Editor (userText t) (getElement t)
