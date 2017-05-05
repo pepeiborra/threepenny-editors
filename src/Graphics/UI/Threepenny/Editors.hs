@@ -4,7 +4,19 @@
 {-# LANGUAGE RecursiveDo       #-}
 {-# LANGUAGE TupleSections     #-}
 {-# OPTIONS_GHC  #-}
-module Graphics.UI.Threepenny.Editors where
+module Graphics.UI.Threepenny.Editors
+  ( -- * Editors
+    Editor(..)
+  , edited
+  , contents
+    -- ** Editor compoosition
+  , (|*|), (|*), (*|)
+  , (-*-), (-*), (*-)
+    -- ** Editor constructors
+  , editorReadShow
+  , editorEnumBounded
+  , withDefault
+  )where
 
 import           Data.Maybe
 import           Data.Profunctor
@@ -24,12 +36,15 @@ data Editor a = Editor
 instance Widget (Editor a) where
   getElement = editorElement
 
+-- | A newtype wrapper that provides a 'Profunctor' instance.
 newtype EditorFactory a b = EditorFactory { run :: Behavior a -> UI (Editor b) }
 
 instance Profunctor EditorFactory where
   dimap g h (EditorFactory f) = EditorFactory $ \b -> fmap h <$> f (g <$> b)
 
+-- | The class of Editable datatypes.
 class Editable a where
+  -- | The editor factory
   editor :: Behavior a -> UI (Editor a)
 
 edited :: Editor a -> Event a
@@ -115,6 +130,7 @@ instance Eq  tag  => Eq   (SumWrapper tag a) where A a _ == A b _ = a == b
 instance Ord tag  => Ord  (SumWrapper tag a) where compare (A a _) (A b _) = compare a b
 instance Show tag => Show (SumWrapper tag a) where show = show . display
 
+-- | * Experimental editor, do not use yet.
 editorSum
   :: (Ord tag, Show tag)
   => [(tag, Editor a)] -> (a -> tag) -> Behavior a -> UI (Editor a)
