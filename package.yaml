@@ -1,5 +1,5 @@
 name:                threepenny-editors
-version:             0.1.0.0
+version:             0.1.0.1
 synopsis:            Composable algebraic editors
 description:         Please see Readme.md
 homepage:            https://github.com/pepeiborra/threepenny-forms#readme
@@ -11,6 +11,14 @@ category:            Web
 extra-source-files:
 - README.md
 ghc-options: -Wall -Wno-name-shadowing
+description: |
+    This package provides a type class 'Editable' and combinators to
+    easily put together form-like editors for algebraic datatypes.
+    .
+    NOTE: This library contains examples, but they are not built by default.
+    To build and install the example, use the @buildExamples@ flag like this
+    .
+    @cabal install threepenny-editors -fbuildExamples@
 
 flags:
   buildExamples:
