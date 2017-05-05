@@ -2,7 +2,7 @@ name:                threepenny-editors
 version:             0.1.0.1
 synopsis:            Composable algebraic editors
 description:         Please see Readme.md
-homepage:            https://github.com/pepeiborra/threepenny-forms#readme
+homepage:            https://github.com/pepeiborra/threepenny-editors
 license:             BSD3
 author:              Jose Iborra
 maintainer:          pepeiborra@gmail.com
