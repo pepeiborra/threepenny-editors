@@ -15,7 +15,7 @@ module Graphics.UI.Threepenny.Editors
   , editorReadShow
   , editorEnumBounded
   , editorSum
-  , withDefault
+  , editorJust
   -- * Reexports
   , Compose(..)
   )where

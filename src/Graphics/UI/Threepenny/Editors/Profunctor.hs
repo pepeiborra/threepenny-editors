@@ -18,13 +18,12 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , editorReadShow
   , editorEnumBounded
   , editorSum
-  , withDefault
+  , editorJust
   -- * Reexports
   , Compose(..)
   )where
 
 import           Data.Functor.Compose
-import           Data.Maybe
 import           Data.Profunctor
 import           Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny.Editors.Base as Base
@@ -70,19 +69,17 @@ e *- a = EditorFactory $ \s -> e Base.*- run a s
 editorUnit :: EditorFactory a ()
 editorUnit = EditorFactory $ \_ -> Base.editor (pure ())
 
-withDefault
-  :: EditorFactory (Maybe a) (Maybe b)
-  -> b
-  -> EditorFactory a b
-withDefault editor def = dimap Just (fromMaybe def) editor
-
 editorReadShow :: (Read a, Show a) => EditorFactory (Maybe a) (Maybe a)
 editorReadShow = EditorFactory Base.editorReadShow
 
 editorEnumBounded
   :: (Show a, Ord a, Enum a, Bounded a)
-  => Behavior (a -> UI Element) -> EditorFactory (Maybe a) (Maybe a)
+  => Behavior (a -> UI Element) -> EditorFactory (Maybe a) (Maybe a )
 editorEnumBounded display = EditorFactory $ Base.editorEnumBounded display
+
+-- | Ignores 'Nothing' values and only updates for 'Just' values
+editorJust :: EditorFactory (Maybe a) (Maybe a) -> EditorFactory a a
+editorJust e = EditorFactory $ Base.editorJust (run e)
 
 editorSum
   :: (Show tag, Ord tag)
@@ -94,14 +91,10 @@ editorSum nested tagger = EditorFactory $ \b ->
 instance Editable () where editor = EditorFactory Base.editor
 instance Editable String where editor = EditorFactory Base.editor
 instance Editable Bool where editor = EditorFactory Base.editor
+instance Editable Int where editor = EditorFactory Base.editor
+instance Editable Double where editor = EditorFactory Base.editor
 instance Editable (Maybe Int) where editor = EditorFactory Base.editor
 instance Editable (Maybe Double) where editor = EditorFactory Base.editor
-
-instance Editable Int where
-  editor = editor `withDefault` 0
-
-instance Editable Double where
-  editor = editor `withDefault` 0
 
 instance (Editable a, Editable b) => Editable (a,b) where
   editor = (,) <$> lmap fst editor |*| lmap snd editor

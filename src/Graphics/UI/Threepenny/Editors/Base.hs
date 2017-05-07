@@ -1,7 +1,7 @@
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections     #-}
+{-# LANGUAGE TypeFamilies      #-}
 {-# OPTIONS_GHC  #-}
 module Graphics.UI.Threepenny.Editors.Base
   ( -- * Editors
@@ -16,6 +16,7 @@ module Graphics.UI.Threepenny.Editors.Base
   , editorReadShow
   , editorEnumBounded
   , editorSum
+  , editorJust
   -- * Reexports
   , Compose(..)
   )where
@@ -73,7 +74,8 @@ e *| a = Compose $ do
 a |* e = Compose $ do
   e <- e
   a <- getCompose a
-  ea <- row [return $ getElement a, return e]
+  ea <- row [
+    return $ getElement a, return e]
   return $ Editor (editorTidings a) ea
 
 -- | Top-down editor composition
@@ -102,8 +104,10 @@ a -* e = Compose $ do
 
 editorReadShow :: (Read a, Show a) => Behavior (Maybe a) -> Compose UI Editor (Maybe a)
 editorReadShow b = Compose $ do
-    e <- getCompose $ editor (show <$> b)
-    let t = tidings b (filterJust $ readMaybe <$> edited e)
+    e <- getCompose $ editor (maybe "" show <$> b)
+    let readIt "" = Nothing
+        readIt x  = readMaybe x
+    let t = tidings b (readIt <$> edited e)
     return $ Editor t (getElement e)
 
 editorEnumBounded
@@ -111,7 +115,16 @@ editorEnumBounded
   => Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI Editor (Maybe a)
 editorEnumBounded display b = Compose $ do
   l <- listBox (pure $ enumFrom minBound) b display
-  return $ Editor (userSelection l) (getElement l)
+  return $ Editor (tidings b (rumors $ userSelection l)) (getElement l)
+
+
+editorJust :: (Behavior (Maybe b) -> Compose UI Editor (Maybe b))
+  -> Behavior b
+  -> Compose UI Editor b
+editorJust editor b = Compose $ do
+  e <- getCompose $ editor (Just <$> b)
+  let ev = filterJust (edited e)
+  return $ Editor (tidings b ev) (editorElement e)
 
 data SumWrapper tag a = A {display :: tag, theEditor :: Editor a}
 
@@ -161,7 +174,6 @@ instance a ~ Char => Editable [a] where
   editor b = Compose $ do
     t <- entry b
     return $ Editor (userText t) (getElement t)
-
 instance Editable Bool where
   editor b = Compose $ do
     t <- sink checked b $ input # set type_ "checkbox"
@@ -169,6 +181,9 @@ instance Editable Bool where
 
 instance Editable (Maybe Int) where editor = editorReadShow
 instance Editable (Maybe Double) where editor = editorReadShow
+instance Editable Int where editor = editorJust editor
+instance Editable Double where editor = editorJust editor
+
 
 instance (Editable a, Editable b) => Editable (a,b) where
   editor b = (,) <$> editor (fst <$> b) |*| editor (snd <$> b)

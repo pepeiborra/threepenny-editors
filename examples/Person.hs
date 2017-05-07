@@ -47,9 +47,9 @@ instance Editable Education where
 data Person = Person
   { education           :: Education
   , firstName, lastName :: String
-  , age                 :: Int
+  , age                 :: Maybe Int
   , brexiteer           :: Bool
-  , status              :: Maybe LegalStatus
+  , status              :: LegalStatus
   }
   deriving Show
 
@@ -60,14 +60,14 @@ instance Editable Person where
       -*- string "Last:"      *| lmap lastName editor
       -*- string "Age:"       *| lmap age editor
       -*- string "Education:" *| lmap education editor
-      -*- string "Status"     *| lmap status (editorEnumBounded(pure(string.show)))
+      -*- string "Status"     *| lmap status (editorJust $ editorEnumBounded(pure(string.show)))
       -*- string "Brexiter"   *| lmap brexiteer editor
 
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
   person1 <- createEditor editor person1B
-  person1B <- stepper (Person Basic_ "" "" 0 False Nothing) (edited person1)
+  person1B <- stepper (Person Basic_ "" "" Nothing False Single) (edited person1)
 
   getBody w #+ [grid
     [ [return $ editorElement person1]
