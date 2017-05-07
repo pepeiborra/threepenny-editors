@@ -3,4 +3,4 @@
 [![Stackage Nightly](http://stackage.org/package/threepenny-editors/badge/nightly)](http://stackage.org/nightly/package/threepenny-editors)
 
 # threepenny-editors
-A library for writing composable algebraic widgets with three penny. 
+A library for writing composable algebraic widgets with threepenny-gui. 
