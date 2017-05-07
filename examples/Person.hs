@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 import           Control.Monad
 import           Data.Maybe
+import           Data.Profunctor
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Editors
 import           Graphics.UI.Threepenny.Elements
@@ -28,6 +29,21 @@ getOther _          = Nothing
 
 data EducationTag = Basic | Intermediate | Other deriving (Eq,Ord,Show)
 
+instance Editable Education where
+  editor = do
+    let selector x =
+          case x of
+            Basic_        -> Basic
+            Intermediate_ -> Intermediate
+            Other_ _      -> Other
+    editorSum
+      [ (Basic, const Basic_ <$> editorUnit)
+      , (Intermediate, const Intermediate_ <$> editorUnit)
+      , (Other, dimap (fromMaybe "" . getOther) Other_ editor)
+      ]
+      selector
+
+
 data Person = Person
   { education           :: Education
   , firstName, lastName :: String
@@ -37,35 +53,20 @@ data Person = Person
   }
   deriving Show
 
-instance Editable Education where
-  editor b = do
-    let selector x =
-          case x of
-            Basic_        -> Basic
-            Intermediate_ -> Intermediate
-            Other_ _      -> Other
-    editorSum
-      [ (Basic, const Basic_ <$> editor (pure ()))
-      , (Intermediate, const Intermediate_ <$> editor (pure ()))
-      , (Other, Other_ <$> editor (fromMaybe "" . getOther <$> b))
-      ]
-      selector
-      b
-
 instance Editable Person where
-  editor b =
+  editor =
     (\fn ln a e ls b -> Person e fn ln a b ls)
-      <$> string "First:"     *| editor (firstName <$> b)
-      -*- string "Last:"      *| editor (lastName <$> b)
-      -*- string "Age:"       *| editor (age <$> b)
-      -*- string "Education:" *| editor (education <$> b)
-      -*- string "Status"     *| editorEnumBounded(pure(string.show)) (status <$> b)
-      -*- string "Brexiter"   *| editor (brexiteer <$> b)
+      <$> string "First:"     *| lmap firstName editor
+      -*- string "Last:"      *| lmap lastName editor
+      -*- string "Age:"       *| lmap age editor
+      -*- string "Education:" *| lmap education editor
+      -*- string "Status"     *| lmap status (editorEnumBounded(pure(string.show)))
+      -*- string "Brexiter"   *| lmap brexiteer editor
 
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
-  person1 <- getCompose $ editor person1B
+  person1 <- createEditor editor person1B
   person1B <- stepper (Person Basic_ "" "" 0 False Nothing) (edited person1)
 
   getBody w #+ [grid

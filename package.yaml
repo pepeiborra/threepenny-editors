@@ -30,6 +30,8 @@ library:
   source-dirs: 	src
   exposed-modules:
     - Graphics.UI.Threepenny.Editors
+    - Graphics.UI.Threepenny.Editors.Base
+    - Graphics.UI.Threepenny.Editors.Profunctor
   dependencies:
     - base >= 4.7 && < 5
     - profunctors
@@ -44,6 +46,7 @@ executables:
       then:
         dependencies:
           - base
+          - profunctors
           - threepenny-gui
           - threepenny-editors
       else: 
