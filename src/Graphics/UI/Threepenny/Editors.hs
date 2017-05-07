@@ -17,8 +17,11 @@ module Graphics.UI.Threepenny.Editors
   , editorEnumBounded
   , editorSum
   , withDefault
+  -- * Reexports
+  , Compose(..)
   )where
 
+import           Data.Functor.Compose
 import           Data.Maybe
 import           Data.Profunctor
 import           Graphics.UI.Threepenny.Attributes
@@ -39,15 +42,15 @@ instance Widget (Editor a) where
   getElement = editorElement
 
 -- | A newtype wrapper that provides a 'Profunctor' instance.
-newtype EditorFactory a b = EditorFactory { run :: Behavior a -> UI (Editor b) }
+newtype EditorFactory a b = EditorFactory { run :: Behavior a -> Compose UI Editor b }
 
 instance Profunctor EditorFactory where
-  dimap g h (EditorFactory f) = EditorFactory $ \b -> fmap h <$> f (g <$> b)
+  dimap g h (EditorFactory f) = EditorFactory $ \b -> h <$> f (g <$> b)
 
 -- | The class of Editable datatypes.
 class Editable a where
   -- | The editor factory
-  editor :: Behavior a -> UI (Editor a)
+  editor :: Behavior a -> Compose UI Editor a
 
 edited :: Editor a -> Event a
 edited = rumors . editorTidings
@@ -59,64 +62,63 @@ infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
 -- | Left-right editor composition
-(|*|) :: UI(Editor (b -> a)) -> UI(Editor b) -> UI(Editor a)
-a |*| b = do
-  a <- a
-  b <- b
+(|*|) :: Compose UI Editor (b -> a) -> Compose UI Editor b -> Compose UI Editor a
+a |*| b = Compose $ do
+  a <- getCompose a
+  b <- getCompose b
   ab <- row [return $ getElement a, return $ getElement b]
   return $ Editor (editorTidings a <*> editorTidings b) ab
 
 -- | Left-right composition of an element with a editor
-(*|) :: UI Element -> UI (Editor a) -> UI (Editor a)
-e *| a = do
+(*|) :: UI Element -> Compose UI Editor a -> Compose UI Editor a
+e *| a = Compose $ do
   e <- e
-  a <- a
+  a <- getCompose a
   ea <- row [return e, return $ getElement a]
   return $ Editor (editorTidings a) ea
 
 -- | Left-right composition of an element with a editor
-(|*) :: UI (Editor a) -> UI Element -> UI (Editor a)
-a |* e = do
+(|*) :: Compose UI Editor a -> UI Element -> Compose UI Editor a
+a |* e = Compose $ do
   e <- e
-  a <- a
+  a <- getCompose a
   ea <- row [return $ getElement a, return e]
   return $ Editor (editorTidings a) ea
 
 -- | Top-down editor composition
-(-*-) :: UI(Editor (b -> a)) -> UI(Editor b) -> UI(Editor a)
-a -*- b = do
-  a <- a
-  b <- b
+(-*-) :: Compose UI Editor (b -> a) -> Compose UI Editor b -> Compose UI Editor a
+a -*- b = Compose $ do
+  a <- getCompose a
+  b <- getCompose b
   ab <- column [return $ getElement a, return $ getElement b]
   return $ Editor (editorTidings a <*> editorTidings b) ab
 
 -- | Top-down composition of an element with a editor
-(*-) :: UI Element -> UI (Editor a) -> UI (Editor a)
-e *- a = do
+(*-) :: UI Element -> Compose UI Editor a -> Compose UI Editor a
+e *- a = Compose $ do
   e <- e
-  a <- a
+  a <- getCompose a
   ea <- column [return e, return $ getElement a]
   return $ Editor (editorTidings a) ea
 
 -- | Top-down composition of an element with a editor
-(-*) :: UI (Editor a) -> UI Element -> UI (Editor a)
-a -* e = do
+(-*) :: Compose UI Editor a -> UI Element -> Compose UI Editor a
+a -* e = Compose $ do
   e <- e
-  a <- a
+  a <- getCompose a
   ea <- column [return $ getElement a, return e]
   return $ Editor (editorTidings a) ea
 
-editorReadShow :: (Read a, Show a) => Behavior (Maybe a) -> UI (Editor (Maybe a))
-editorReadShow b =
-  do
-    e <- editor (show <$> b)
+editorReadShow :: (Read a, Show a) => Behavior (Maybe a) -> Compose UI Editor (Maybe a)
+editorReadShow b = Compose $ do
+    e <- getCompose $ editor (show <$> b)
     let t = tidings b (filterJust $ readMaybe <$> edited e)
     return $ Editor t (getElement e)
 
 editorEnumBounded
   :: (Bounded a, Enum a, Ord a, Show a)
-  => Behavior(a -> UI Element) -> Behavior (Maybe a) -> UI (Editor (Maybe a))
-editorEnumBounded display b = do
+  => Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI Editor (Maybe a)
+editorEnumBounded display b = Compose $ do
   l <- listBox (pure $ enumFrom minBound) b display
   return $ Editor (userSelection l) (getElement l)
 
@@ -135,9 +137,10 @@ instance Show tag => Show (SumWrapper tag a) where show = show . display
 -- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Ord tag, Show tag)
-  => [(tag, Editor a)] -> (a -> tag) -> Behavior a -> UI (Editor a)
-editorSum options selector ba = do
+  => [(tag, Compose UI Editor a)] -> (a -> tag) -> Behavior a -> Compose UI Editor a
+editorSum options selector ba = Compose $ do
   w <- askWindow
+  options <- traverse (\(tag, Compose mk) -> (tag,) <$> mk) options
   -- extract the tag from the current value
   let bSelected =
         let build a =
@@ -165,12 +168,12 @@ editorSum options selector ba = do
   return $ Editor (tidings ba editedE) composed
 
 instance Editable () where
-  editor b = do
+  editor b = Compose $ do
     t <- new
     return $ Editor (tidings b never) (getElement t)
 
 instance a ~ Char => Editable [a] where
-  editor b = do
+  editor b = Compose $ do
     t <- entry b
     return $ Editor (userText t) (getElement t)
 
@@ -181,7 +184,7 @@ instance Editable Double where
   editor = run $ EditorFactory editor `withDefault` 0
 
 instance Editable Bool where
-  editor b = do
+  editor b = Compose $ do
     t <- sink checked b $ input # set type_ "checkbox"
     return $ Editor (tidings b $ checkedChange t) t
 
@@ -189,4 +192,4 @@ instance Editable (Maybe Int) where editor = editorReadShow
 instance Editable (Maybe Double) where editor = editorReadShow
 
 instance (Editable a, Editable b) => Editable (a,b) where
-  editor b = fmap (,) <$> editor (fst <$> b) |*| editor (snd <$> b)
+  editor b = (,) <$> editor (fst <$> b) |*| editor (snd <$> b)

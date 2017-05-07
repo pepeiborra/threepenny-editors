@@ -39,25 +39,22 @@ data Person = Person
 
 instance Editable Education where
   editor b = do
-    basicEditor <- fmap (const Basic_) <$> editor (pure ())
-    intermediateEditor <- fmap (const Intermediate_) <$> editor (pure ())
-    otherEditor <- fmap Other_ <$> editor (fromMaybe "" . getOther <$> b)
     let selector x =
           case x of
             Basic_        -> Basic
             Intermediate_ -> Intermediate
             Other_ _      -> Other
     editorSum
-      [ (Basic, basicEditor)
-      , (Intermediate, intermediateEditor)
-      , (Other, otherEditor)
+      [ (Basic, const Basic_ <$> editor (pure ()))
+      , (Intermediate, const Intermediate_ <$> editor (pure ()))
+      , (Other, Other_ <$> editor (fromMaybe "" . getOther <$> b))
       ]
       selector
       b
 
 instance Editable Person where
   editor b =
-    fmap (\fn ln a e ls b -> Person e fn ln a b ls)
+    (\fn ln a e ls b -> Person e fn ln a b ls)
       <$> string "First:"     *| editor (firstName <$> b)
       -*- string "Last:"      *| editor (lastName <$> b)
       -*- string "Age:"       *| editor (age <$> b)
@@ -68,7 +65,7 @@ instance Editable Person where
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
-  person1 :: Editor Person <- editor person1B
+  person1 <- getCompose $ editor person1B
   person1B <- stepper (Person Basic_ "" "" 0 False Nothing) (edited person1)
 
   getBody w #+ [grid
