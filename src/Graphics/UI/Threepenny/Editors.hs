@@ -10,6 +10,7 @@ module Graphics.UI.Threepenny.Editors
     -- ** Editor compoosition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
+  , field
     -- ** Editor constructors
   , editorUnit
   , editorReadShow

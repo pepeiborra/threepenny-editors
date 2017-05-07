@@ -13,6 +13,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
     -- ** Editor compoosition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
+  , field
     -- ** Editor constructors
   , editorUnit
   , editorReadShow
@@ -65,6 +66,11 @@ a -* e = EditorFactory $ \s -> run a s Base.-* e
 
 (*-) :: UI Element -> EditorFactory s a -> EditorFactory s a
 e *- a = EditorFactory $ \s -> e Base.*- run a s
+
+-- | A helper that arranges a label with the field name
+--   and the editor horizontally.
+field :: String -> (out -> inn) -> EditorFactory inn a -> EditorFactory out a
+field name f e = string name *| lmap f e
 
 editorUnit :: EditorFactory a ()
 editorUnit = EditorFactory $ \_ -> Base.editor (pure ())

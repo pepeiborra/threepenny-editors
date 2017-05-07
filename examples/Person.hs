@@ -53,15 +53,18 @@ data Person = Person
   }
   deriving Show
 
+instance Editable LegalStatus where
+  editor = editorJust $ editorEnumBounded(pure(string.show))
+
 instance Editable Person where
   editor =
     (\fn ln a e ls b -> Person e fn ln a b ls)
-      <$> string "First:"     *| lmap firstName editor
-      -*- string "Last:"      *| lmap lastName editor
-      -*- string "Age:"       *| lmap age editor
-      -*- string "Education:" *| lmap education editor
-      -*- string "Status"     *| lmap status (editorJust $ editorEnumBounded(pure(string.show)))
-      -*- string "Brexiter"   *| lmap brexiteer editor
+      <$> field "First:"     firstName editor
+      -*- field "Last:"      lastName editor
+      -*- field "Age:"       age editor
+      -*- field "Education:" education editor
+      -*- field "Status"     status editor
+      -*- field "Brexiter"   brexiteer editor
 
 setup :: Window -> UI ()
 setup w = void $ mdo
