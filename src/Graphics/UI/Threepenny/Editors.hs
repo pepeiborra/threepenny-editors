@@ -1,7 +1,6 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RecursiveDo       #-}
 {-# LANGUAGE TupleSections     #-}
 {-# OPTIONS_GHC  #-}
 module Graphics.UI.Threepenny.Editors
@@ -9,12 +8,14 @@ module Graphics.UI.Threepenny.Editors
     Editor(..)
   , edited
   , contents
+  , Editable(..)
     -- ** Editor compoosition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
     -- ** Editor constructors
   , editorReadShow
   , editorEnumBounded
+  , editorSum
   , withDefault
   )where
 
@@ -27,6 +28,7 @@ import           Graphics.UI.Threepenny.Events
 import           Graphics.UI.Threepenny.Widgets
 import           Text.Read
 
+-- | A widget for editing values of type @a@.
 data Editor a = Editor
   { editorTidings :: Tidings a
   , editorElement :: Element
@@ -124,30 +126,43 @@ withDefault
   -> EditorFactory a b
 withDefault editor def = dimap Just (fromMaybe def) editor
 
-data SumWrapper tag a = A {display :: tag, factory :: Editor a}
+data SumWrapper tag a = A {display :: tag, theEditor :: Editor a}
 
 instance Eq  tag  => Eq   (SumWrapper tag a) where A a _ == A b _ = a == b
 instance Ord tag  => Ord  (SumWrapper tag a) where compare (A a _) (A b _) = compare a b
 instance Show tag => Show (SumWrapper tag a) where show = show . display
 
--- | * Experimental editor, do not use yet.
+-- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Ord tag, Show tag)
   => [(tag, Editor a)] -> (a -> tag) -> Behavior a -> UI (Editor a)
-editorSum options selector ba = mdo
+editorSum options selector ba = do
+  w <- askWindow
+  -- extract the tag from the current value
   let bSelected =
         let build a =
               let tag = selector a
               in A tag <$> lookup tag options
         in build <$> ba
-  l <- listBox (pure $ fmap (uncurry A) options) bSelected (pure (string . show))
-  let nestedEditor = factory . fromMaybe (uncurry A $ head options) <$> bSelected
-  nestedElement <- sink children ((:[]) . getElement <$> nestedEditor) new
-  composed <- column [element l, widget nestedElement]
-  let joinE :: Event (Event a) -> UI(Event a)
-      joinE = undefined -- missing in threepenny-gui
-  event <- joinE (edited <$> nestedEditor <@ rumors (userSelection l))
-  return $ Editor (tidings ba event) composed
+  -- build a tag selector following the current tag
+  l <-
+    listBox (pure $ fmap (uncurry A) options) bSelected (pure (string . show))
+  -- a placeholder for the constructor editor
+  nestedEditor <- new
+  -- when the user selects a tag, refresh the nested editor
+  _ <-
+    liftIO $
+    register (filterJust $ rumors (userSelection l)) $ \x ->
+      runUI w $ set' children [getElement $ theEditor x] nestedEditor
+  --
+  composed <- column [element l, widget nestedEditor]
+  -- the result event fires when any of the nested editors or the tag selector fire.
+  let editedEvents = fmap (edited . snd) options
+      eTag = filterJust $ fmap display <$> rumors (userSelection l)
+      taggedOptions = sequenceA [(tag, ) <$> contents e | (tag, e) <- options]
+      editedTag = filterJust $ flip lookup <$> taggedOptions <@> eTag
+      editedE = head <$> unions (editedTag : editedEvents)
+  return $ Editor (tidings ba editedE) composed
 
 instance Editable () where
   editor b = do
@@ -172,3 +187,6 @@ instance Editable Bool where
 
 instance Editable (Maybe Int) where editor = editorReadShow
 instance Editable (Maybe Double) where editor = editorReadShow
+
+instance (Editable a, Editable b) => Editable (a,b) where
+  editor b = fmap (,) <$> editor (fst <$> b) |*| editor (snd <$> b)

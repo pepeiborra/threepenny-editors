@@ -1,9 +1,10 @@
 resolver: lts-8.12
 packages:
 - '.'
+
 extra-deps: []
 
 flags:
   threepenny-editors:
-    buildExamples: false
+    buildExamples: true
 
