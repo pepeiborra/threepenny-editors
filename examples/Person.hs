@@ -70,7 +70,7 @@ setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
   person1 <- createEditor editor person1B
-  person1B <- stepper (Person Basic_ "" "" Nothing False Single) (edited person1)
+  person1B <- stepper (Person Basic_ "First" "Last" (Just 18) False Single) (edited person1)
 
   getBody w #+ [grid
     [ [return $ editorElement person1]

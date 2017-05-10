@@ -172,8 +172,14 @@ instance Editable () where
 
 instance a ~ Char => Editable [a] where
   editor b = Compose $ do
+    w <- askWindow
     t <- entry b
+    liftIOLater $ do
+      initialValue <- currentValue b
+      _ <- runUI w $ set value initialValue (element t)
+      return ()
     return $ Editor (userText t) (getElement t)
+
 instance Editable Bool where
   editor b = Compose $ do
     t <- sink checked b $ input # set type_ "checkbox"
