@@ -9,6 +9,9 @@ module Graphics.UI.Threepenny.Editors.Base
   , edited
   , contents
   , Editable(..)
+    -- ** Editor definitions
+  , EditorDef
+  , runEditorDef
     -- ** Editor compoosition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
@@ -36,95 +39,130 @@ data Editor a = Editor
   }
   deriving Functor
 
-instance Widget (Editor a) where
-  getElement = editorElement
-
--- | The class of Editable datatypes.
-class Editable a where
-  -- | The editor factory
-  editor :: Behavior a -> Compose UI Editor a
-
 edited :: Editor a -> Event a
 edited = rumors . editorTidings
 
 contents :: Editor a -> Behavior a
 contents = facts . editorTidings
 
+instance Widget (Editor a) where
+  getElement = editorElement
+
+data Layout
+  = Horizontal [Layout]
+  | Vertical [Layout]
+  | Single Element
+
+vertical, horizontal :: Layout -> Layout -> Layout
+vertical (Vertical xx) y = Vertical (xx ++ [y])
+vertical x (Vertical yy) = Vertical (x:yy)
+vertical x y = Vertical [x,y]
+
+horizontal (Horizontal xx) y = Horizontal (xx ++ [y])
+horizontal x (Horizontal yy) = Horizontal (x : yy)
+horizontal x y = Horizontal [x,y]
+
+single :: Element -> Layout
+single = Single
+
+runLayout :: Layout -> UI Element
+runLayout (Vertical ll)   = column $ fmap runLayout ll
+runLayout (Horizontal ll) = row $ fmap runLayout ll
+runLayout (Single x)      = return x
+
+data EditorDef a = EditorDef
+  { editorDefTidings :: Tidings a
+  , editorDefLayout  :: Layout
+  }
+  deriving Functor
+
+editedDef :: EditorDef a -> Event a
+editedDef = rumors . editorDefTidings
+
+runEditorDef :: EditorDef a -> UI (Editor a)
+runEditorDef def = do
+  el <- runLayout (editorDefLayout def)
+  return $ Editor (editorDefTidings def) el
+
+-- | The class of Editable datatypes.
+class Editable a where
+  -- | The editor factory
+  editor :: Behavior a -> Compose UI EditorDef a
+
 infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
 -- | Left-right editor composition
-(|*|) :: Compose UI Editor (b -> a) -> Compose UI Editor b -> Compose UI Editor a
+(|*|) :: Compose UI EditorDef (b -> a) -> Compose UI EditorDef b -> Compose UI EditorDef a
 a |*| b = Compose $ do
   a <- getCompose a
   b <- getCompose b
-  ab <- row [return $ getElement a, return $ getElement b]
-  return $ Editor (editorTidings a <*> editorTidings b) ab
+  let ab = horizontal (editorDefLayout a) (editorDefLayout b)
+  return $ EditorDef (editorDefTidings a <*> editorDefTidings b) ab
 
 -- | Left-right composition of an element with a editor
-(*|) :: UI Element -> Compose UI Editor a -> Compose UI Editor a
+(*|) :: UI Element -> Compose UI EditorDef a -> Compose UI EditorDef a
 e *| a = Compose $ do
   e <- e
   a <- getCompose a
-  ea <- row [return e, return $ getElement a]
-  return $ Editor (editorTidings a) ea
+  let ea = horizontal (single e) (editorDefLayout a)
+  return $ EditorDef (editorDefTidings a) ea
 
 -- | Left-right composition of an element with a editor
-(|*) :: Compose UI Editor a -> UI Element -> Compose UI Editor a
+(|*) :: Compose UI EditorDef a -> UI Element -> Compose UI EditorDef a
 a |* e = Compose $ do
   e <- e
   a <- getCompose a
-  ea <- row [
-    return $ getElement a, return e]
-  return $ Editor (editorTidings a) ea
+  let ea = horizontal (editorDefLayout a) (single e)
+  return $ EditorDef (editorDefTidings a) ea
 
 -- | Top-down editor composition
-(-*-) :: Compose UI Editor (b -> a) -> Compose UI Editor b -> Compose UI Editor a
+(-*-) :: Compose UI EditorDef (b -> a) -> Compose UI EditorDef b -> Compose UI EditorDef a
 a -*- b = Compose $ do
   a <- getCompose a
   b <- getCompose b
-  ab <- column [return $ getElement a, return $ getElement b]
-  return $ Editor (editorTidings a <*> editorTidings b) ab
+  let ab = vertical (editorDefLayout a) (editorDefLayout b)
+  return $ EditorDef (editorDefTidings a <*> editorDefTidings b) ab
 
 -- | Top-down composition of an element with a editor
-(*-) :: UI Element -> Compose UI Editor a -> Compose UI Editor a
+(*-) :: UI Element -> Compose UI EditorDef a -> Compose UI EditorDef a
 e *- a = Compose $ do
   e <- e
   a <- getCompose a
-  ea <- column [return e, return $ getElement a]
-  return $ Editor (editorTidings a) ea
+  let ea = vertical (single e) (editorDefLayout a)
+  return $ EditorDef (editorDefTidings a) ea
 
 -- | Top-down composition of an element with a editor
-(-*) :: Compose UI Editor a -> UI Element -> Compose UI Editor a
+(-*) :: Compose UI EditorDef a -> UI Element -> Compose UI EditorDef a
 a -* e = Compose $ do
   e <- e
   a <- getCompose a
-  ea <- column [return $ getElement a, return e]
-  return $ Editor (editorTidings a) ea
+  let ea = vertical (editorDefLayout a) (single e)
+  return $ EditorDef (editorDefTidings a) ea
 
-editorReadShow :: (Read a, Show a) => Behavior (Maybe a) -> Compose UI Editor (Maybe a)
+editorReadShow :: (Read a, Show a) => Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
 editorReadShow b = Compose $ do
     e <- getCompose $ editor (maybe "" show <$> b)
     let readIt "" = Nothing
         readIt x  = readMaybe x
-    let t = tidings b (readIt <$> edited e)
-    return $ Editor t (getElement e)
+    let t = tidings b (readIt <$> editedDef e)
+    return $ EditorDef t (editorDefLayout e)
 
 editorEnumBounded
   :: (Bounded a, Enum a, Ord a, Show a)
-  => Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI Editor (Maybe a)
+  => Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
 editorEnumBounded display b = Compose $ do
   l <- listBox (pure $ enumFrom minBound) b display
-  return $ Editor (tidings b (rumors $ userSelection l)) (getElement l)
+  return $ EditorDef (tidings b (rumors $ userSelection l)) (single $ getElement l)
 
 
-editorJust :: (Behavior (Maybe b) -> Compose UI Editor (Maybe b))
+editorJust :: (Behavior (Maybe b) -> Compose UI EditorDef (Maybe b))
   -> Behavior b
-  -> Compose UI Editor b
+  -> Compose UI EditorDef b
 editorJust editor b = Compose $ do
   e <- getCompose $ editor (Just <$> b)
-  let ev = filterJust (edited e)
-  return $ Editor (tidings b ev) (editorElement e)
+  let ev = filterJust (editedDef e)
+  return $ EditorDef (tidings b ev) (editorDefLayout e)
 
 data SumWrapper tag a = A {display :: tag, theEditor :: Editor a}
 
@@ -135,10 +173,10 @@ instance Show tag => Show (SumWrapper tag a) where show = show . display
 -- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Ord tag, Show tag)
-  => [(tag, Compose UI Editor a)] -> (a -> tag) -> Behavior a -> Compose UI Editor a
+  => [(tag, Compose UI EditorDef a)] -> (a -> tag) -> Behavior a -> Compose UI EditorDef a
 editorSum options selector ba = Compose $ do
   w <- askWindow
-  options <- traverse (\(tag, Compose mk) -> (tag,) <$> mk) options
+  options <- traverse (\(tag, Compose mk) -> (tag,) <$> (mk >>= runEditorDef)) options
   -- extract the tag from the current value
   let bSelected =
         let build a =
@@ -149,26 +187,26 @@ editorSum options selector ba = Compose $ do
   l <-
     listBox (pure $ fmap (uncurry A) options) bSelected (pure (string . show))
   -- a placeholder for the constructor editor
-  nestedEditor <- new
+  nestedEditorDef <- new
   -- when the user selects a tag, refresh the nested editor
   _ <-
     liftIO $
     register (filterJust $ rumors (userSelection l)) $ \x ->
-      runUI w $ set' children [getElement $ theEditor x] nestedEditor
+      runUI w $ set' children [getElement $ theEditor x] nestedEditorDef
   --
-  composed <- column [element l, widget nestedEditor]
+  let composed = Vertical [single (getElement l), single nestedEditorDef]
   -- the result event fires when any of the nested editors or the tag selector fire.
   let editedEvents = fmap (edited . snd) options
       eTag = filterJust $ fmap display <$> rumors (userSelection l)
       taggedOptions = sequenceA [(tag, ) <$> contents e | (tag, e) <- options]
       editedTag = filterJust $ flip lookup <$> taggedOptions <@> eTag
       editedE = head <$> unions (editedTag : editedEvents)
-  return $ Editor (tidings ba editedE) composed
+  return $ EditorDef (tidings ba editedE) composed
 
 instance Editable () where
   editor b = Compose $ do
     t <- new
-    return $ Editor (tidings b never) (getElement t)
+    return $ EditorDef (tidings b never) (single t)
 
 instance a ~ Char => Editable [a] where
   editor b = Compose $ do
@@ -178,12 +216,12 @@ instance a ~ Char => Editable [a] where
       initialValue <- currentValue b
       _ <- runUI w $ set value initialValue (element t)
       return ()
-    return $ Editor (userText t) (getElement t)
+    return $ EditorDef (userText t) (single $ getElement t)
 
 instance Editable Bool where
   editor b = Compose $ do
     t <- sink checked b $ input # set type_ "checkbox"
-    return $ Editor (tidings b $ checkedChange t) t
+    return $ EditorDef (tidings b $ checkedChange t) (single t)
 
 instance Editable (Maybe Int) where editor = editorReadShow
 instance Editable (Maybe Double) where editor = editorReadShow

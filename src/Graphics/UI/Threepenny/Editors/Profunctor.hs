@@ -31,11 +31,11 @@ import qualified Graphics.UI.Threepenny.Editors.Base as Base
 
 -- | A newtype wrapper that provides a 'Profunctor' instance.
 newtype EditorFactory a b = EditorFactory
-  { run :: Behavior a -> Compose UI Base.Editor b
+  { run :: Behavior a -> Compose UI Base.EditorDef b
   }
 
 createEditor :: EditorFactory b a -> Behavior b -> UI (Base.Editor a)
-createEditor e b = getCompose $ run e b
+createEditor e b = getCompose (run e b) >>= Base.runEditorDef
 
 instance Functor (EditorFactory a) where
   fmap = dimap id
