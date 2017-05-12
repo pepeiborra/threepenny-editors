@@ -25,6 +25,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   )where
 
 import           Data.Functor.Compose
+import           Data.Functor.Identity
 import           Data.Profunctor
 import           Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny.Editors.Base as Base
@@ -104,3 +105,6 @@ instance Editable (Maybe Double) where editor = EditorFactory Base.editor
 
 instance (Editable a, Editable b) => Editable (a,b) where
   editor = (,) <$> lmap fst editor |*| lmap snd editor
+
+instance Editable a => Editable (Identity a) where
+  editor = dimap Identity runIdentity editor
