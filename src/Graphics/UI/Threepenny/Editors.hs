@@ -17,6 +17,9 @@ module Graphics.UI.Threepenny.Editors
   , editorEnumBounded
   , editorSum
   , editorJust
+    -- ** Generic editors
+  , editorGeneric
+  , editorGenericSimple
   -- * Reexports
   , Compose(..)
   )where

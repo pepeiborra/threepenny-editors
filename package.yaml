@@ -34,6 +34,8 @@ library:
     - Graphics.UI.Threepenny.Editors.Profunctor
   dependencies:
     - base >= 4.7 && < 5
+    - data-default
+    - generics-sop
     - profunctors
     - threepenny-gui > 0.7
 
@@ -46,6 +48,8 @@ executables:
       then:
         dependencies:
           - base
+          - data-default
+          - generics-sop
           - profunctors
           - threepenny-gui
           - threepenny-editors
