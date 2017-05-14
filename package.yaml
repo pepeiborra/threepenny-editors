@@ -1,5 +1,5 @@
 name:                threepenny-editors
-version:             0.2.0.4
+version:             0.2.0.5
 synopsis:            Composable algebraic editors
 description:         Please see Readme.md
 homepage:            https://github.com/pepeiborra/threepenny-editors
@@ -10,6 +10,7 @@ copyright:           All Rights Reserved
 category:            Web
 extra-source-files:
 - README.md
+- CHANGELOG.md
 ghc-options: -Wall -Wno-name-shadowing
 description: |
     This package provides a type class 'Editable' and combinators to
