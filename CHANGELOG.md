@@ -1,3 +1,5 @@
+# 0.2.0.6 (2017-05-15)
+    * Fix the `Editable` instance for `Identity` and remove reexports.
 # 0.2.0.5 (2017-05-14)
 
 	* Add `editorGeneric` and `editorGenericSimple` for types with generics-sop instances.
