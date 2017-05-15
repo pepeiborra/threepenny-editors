@@ -35,8 +35,6 @@ module Graphics.UI.Threepenny.Editors.Profunctor
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
-  -- * Reexports
-  , Compose(..)
   )where
 
 import           Data.Bifunctor

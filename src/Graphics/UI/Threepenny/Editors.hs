@@ -20,8 +20,6 @@ module Graphics.UI.Threepenny.Editors
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
-  -- * Reexports
-  , Compose(..)
   )where
 
 import Graphics.UI.Threepenny.Editors.Profunctor
