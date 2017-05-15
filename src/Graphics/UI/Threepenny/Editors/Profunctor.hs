@@ -28,6 +28,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , field
     -- ** Editor constructors
   , editorUnit
+  , editorIdentity
   , editorReadShow
   , editorEnumBounded
   , editorSum
@@ -127,7 +128,10 @@ instance (Editable a, Editable b) => Editable (a,b) where
   editor = (,) <$> lmap fst editor |*| lmap snd editor
 
 instance Editable a => Editable (Identity a) where
-  editor = dimap Identity runIdentity editor
+  editor = editorIdentity editor
+
+editorIdentity :: EditorFactory a a -> EditorFactory (Identity a) (Identity a)
+editorIdentity = dimap runIdentity Identity
 
 {--------------------------------------------
   Generic derivations

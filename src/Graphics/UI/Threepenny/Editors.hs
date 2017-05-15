@@ -13,6 +13,7 @@ module Graphics.UI.Threepenny.Editors
   , field
     -- ** Editor constructors
   , editorUnit
+  , editorIdentity
   , editorReadShow
   , editorEnumBounded
   , editorSum
