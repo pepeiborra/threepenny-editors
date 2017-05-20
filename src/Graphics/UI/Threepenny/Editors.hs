@@ -16,6 +16,7 @@ module Graphics.UI.Threepenny.Editors
   , editorIdentity
   , editorReadShow
   , editorEnumBounded
+  , editorSelection
   , editorSum
   , editorJust
     -- ** Generic editors

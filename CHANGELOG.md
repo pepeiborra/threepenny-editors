@@ -1,3 +1,5 @@
+# 0.2.0.7 (2017-05-20)
+    * Added `editorSelection`.
 # 0.2.0.6 (2017-05-15)
     * Fix the `Editable` instance for `Identity` and remove reexports.
 # 0.2.0.5 (2017-05-14)

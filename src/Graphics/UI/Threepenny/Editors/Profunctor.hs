@@ -31,6 +31,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , editorIdentity
   , editorReadShow
   , editorEnumBounded
+  , editorSelection
   , editorSum
   , editorJust
     -- ** Generic editors
@@ -109,6 +110,11 @@ editorEnumBounded display = EditorFactory $ Base.editorEnumBounded display
 editorJust :: EditorFactory (Maybe a) (Maybe a) -> EditorFactory a a
 editorJust e = EditorFactory $ Base.editorJust (run e)
 
+-- | An editor that presents a dynamic list of options
+editorSelection :: Eq a => Behavior [(String,a)] -> EditorFactory a a
+editorSelection sel = EditorFactory $ Base.editorSelection sel
+
+-- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Show tag, Ord tag)
   => [(tag, EditorFactory b b)] -> (b -> tag) -> EditorFactory b b
