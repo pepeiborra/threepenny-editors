@@ -26,6 +26,7 @@ module Graphics.UI.Threepenny.Editors.Base
   )where
 
 import           Data.Functor.Compose
+import           Data.Maybe
 import           Graphics.UI.Threepenny.Attributes
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Elements
@@ -171,44 +172,56 @@ editorJust editor b = Compose $ do
   let ev = filterJust (editedDef e)
   return $ EditorDef (tidings b ev) (editorDefLayout e)
 
-data SumWrapper tag a = A {display :: tag, theEditor :: Editor a}
-
-instance Eq  tag  => Eq   (SumWrapper tag a) where A a _ == A b _ = a == b
-instance Ord tag  => Ord  (SumWrapper tag a) where compare (A a _) (A b _) = compare a b
-instance Show tag => Show (SumWrapper tag a) where show = show . display
-
 -- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Ord tag, Show tag)
   => [(tag, Compose UI EditorDef a)] -> (a -> tag) -> Behavior a -> Compose UI EditorDef a
 editorSum options selector ba = Compose $ do
-  w <- askWindow
   options <- traverse (\(tag, Compose mk) -> (tag,) <$> (mk >>= runEditorDef)) options
-  -- extract the tag from the current value
-  let bSelected =
-        let build a =
-              let tag = selector a
-              in A tag <$> lookup tag options
-        in build <$> ba
+  let tag = selector <$> ba
+  tag' <- calmB tag
+  let build a = lookup a options
   -- build a tag selector following the current tag
-  l <-
-    listBox (pure $ fmap (uncurry A) options) bSelected (pure (string . show))
+  l <- listBox (pure $ fmap fst options) (Just <$> tag) (pure (string . show))
   -- a placeholder for the constructor editor
-  nestedEditorDef <- new
-  -- when the user selects a tag, refresh the nested editor
-  _ <-
-    liftIO $
-    register (filterJust $ rumors (userSelection l)) $ \x ->
-      runUI w $ set' children [getElement $ theEditor x] nestedEditorDef
+  nestedEditorDef <-
+    new # sink children ((\x -> [maybe (error "editorSum") editorElement (build x)]) <$> tag')
   --
   let composed = Vertical [single (getElement l), single nestedEditorDef]
   -- the result event fires when any of the nested editors or the tag selector fire.
   let editedEvents = fmap (edited . snd) options
-      eTag = filterJust $ fmap display <$> rumors (userSelection l)
+      eTag = filterJust $ rumors (userSelection l)
       taggedOptions = sequenceA [(tag, ) <$> contents e | (tag, e) <- options]
       editedTag = filterJust $ flip lookup <$> taggedOptions <@> eTag
       editedE = head <$> unions (editedTag : editedEvents)
   return $ EditorDef (tidings ba editedE) composed
+
+-- | Returns a new behavior that only notifies for new values.
+calmB :: Eq a => Behavior a -> UI (Behavior a)
+calmB b = do
+  w <- askWindow
+  (e, trigger) <- liftIO newEvent
+  liftIOLater $ do
+    current <- currentValue b
+    trigger current
+    runUI w $ onChanges b (liftIO . trigger)
+  eCalm <- calmE e
+  fmap (fromMaybe (error "calmB")) <$> stepper Nothing (Just <$> eCalm)
+
+data Memory a = Empty | New a | Same a
+updateMemory :: Eq a => a -> Memory a -> Memory a
+updateMemory x Empty  = New x
+updateMemory x (New  a) | a /= x = New x
+updateMemory x (Same a) | a /= x = New x
+updateMemory x _ = Same x
+isNew :: Memory a -> Maybe a
+isNew (New x) = Just x
+isNew _ = Nothing
+
+-- | Returns a new 'Event' that skips consecutive triggers with the same value.
+calmE :: Eq a => Event a -> UI (Event a)
+calmE e =
+  filterJust . fmap isNew <$> accumE Empty (updateMemory <$> e)
 
 instance Editable () where
   editor b = Compose $ do
