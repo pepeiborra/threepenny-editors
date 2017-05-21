@@ -97,9 +97,9 @@ setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
   person1 <- createEditor editorPerson person1B
-  person1B <- stepper def (edited person1)
-
   person2 <- createEditor editorGeneric person1B
+
+  person1B <- stepper def (unionWith const (edited person1) (edited person2))
 
   getBody w #+ [grid
     [ [return $ editorElement person1]
