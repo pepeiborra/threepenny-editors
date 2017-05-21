@@ -26,7 +26,6 @@ module Graphics.UI.Threepenny.Editors.Base
   )where
 
 import           Data.Functor.Compose
-import           Data.Tuple
 import           Graphics.UI.Threepenny.Attributes
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Elements
@@ -153,8 +152,14 @@ editorReadShow b = Compose $ do
 editorEnumBounded
   :: (Bounded a, Enum a, Ord a, Show a)
   => Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
-editorEnumBounded display b = Compose $ do
-  l <- listBox (pure $ enumFrom minBound) b display
+editorEnumBounded = editorSelection (pure $ enumFrom minBound)
+
+-- | An editor that presents a dynamic list of options.
+editorSelection
+  :: Ord a
+  => Behavior [a] -> Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
+editorSelection options display b = Compose $ do
+  l <- listBox options b display
   return $ EditorDef (tidings b (rumors $ userSelection l)) (single $ getElement l)
 
 
@@ -171,13 +176,6 @@ data SumWrapper tag a = A {display :: tag, theEditor :: Editor a}
 instance Eq  tag  => Eq   (SumWrapper tag a) where A a _ == A b _ = a == b
 instance Ord tag  => Ord  (SumWrapper tag a) where compare (A a _) (A b _) = compare a b
 instance Show tag => Show (SumWrapper tag a) where show = show . display
-
--- | An editor that presents a dynamic list of options
-editorSelection :: Eq a => Behavior [(String,a)] -> Behavior a -> Compose UI EditorDef a
-editorSelection options selected = Compose $ do
-  l <- listBox (fmap fst <$> options) ((\s o -> lookup s (fmap swap o)) <$> selected <*> options) (pure string)
-  let e = filterJust $ flip lookup <$> options <@> filterJust (rumors (userSelection l))
-  return $ EditorDef (tidings selected e) (single $ getElement l)
 
 -- | An editor for union types, built from editors for its constructors.
 editorSum

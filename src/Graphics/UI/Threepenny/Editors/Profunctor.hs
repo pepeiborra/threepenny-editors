@@ -111,8 +111,8 @@ editorJust :: EditorFactory (Maybe a) (Maybe a) -> EditorFactory a a
 editorJust e = EditorFactory $ Base.editorJust (run e)
 
 -- | An editor that presents a dynamic list of options
-editorSelection :: Eq a => Behavior [(String,a)] -> EditorFactory a a
-editorSelection sel = EditorFactory $ Base.editorSelection sel
+editorSelection :: Ord a => Behavior [a] -> Behavior(a -> UI Element) -> EditorFactory (Maybe a) (Maybe a)
+editorSelection opts displ = EditorFactory $ Base.editorSelection opts displ
 
 -- | An editor for union types, built from editors for its constructors.
 editorSum
