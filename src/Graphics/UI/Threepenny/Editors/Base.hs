@@ -1,4 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections     #-}
@@ -26,6 +25,7 @@ module Graphics.UI.Threepenny.Editors.Base
   , Compose(..)
   )where
 
+import           Control.Monad
 import           Data.Functor.Compose
 import           Data.Maybe
 import           Graphics.UI.Threepenny.Attributes
@@ -68,24 +68,20 @@ horizontal x y               = Horizontal [x,y]
 single :: Element -> Layout
 single = Single
 
-getHorizontal :: Layout -> Maybe [Layout]
-getHorizontal (Horizontal h) = Just h
-getHorizontal _ = Nothing
+getHorizontal :: Layout -> [Layout]
+getHorizontal (Horizontal h) = h
+getHorizontal other = [other]
 
-getSingle :: Layout -> Maybe Element
-getSingle (Single e) = Just e
-getSingle _ = Nothing
+getSingleOrGrid :: Layout -> UI Element
+getSingleOrGrid (Single e) = return e
+getSingleOrGrid other = runLayout other
 
--- getGridLayout :: Layout -> Maybe [[Element]]
-getGridLayout :: Layout -> Maybe [[Element]]
-getGridLayout (Vertical hh) = mapM getHorizontal hh >>= mapM (mapM getSingle)
-getGridLayout _ = Nothing
+getGridLayout :: Layout -> UI [[Element]]
+getGridLayout (Vertical hh) = mapM (mapM getSingleOrGrid) $ fmap getHorizontal hh
+getGridLayout other = getGridLayout $ Vertical [other]
 
 runLayout :: Layout -> UI Element
-runLayout (getGridLayout -> Just g) = grid (fmap (fmap return) g) 
-runLayout (Vertical ll)   = column $ fmap runLayout ll
-runLayout (Horizontal ll) = row $ fmap runLayout ll
-runLayout (Single x)      = return x
+runLayout = getGridLayout >=> grid . fmap (fmap return)
 
 data EditorDef a = EditorDef
   { editorDefTidings :: Tidings a
