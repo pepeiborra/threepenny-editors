@@ -1,3 +1,5 @@
+# 0.2.0.10 (2017-05-23)
+    * Nested grids. All layouts are now grid based.
 # 0.2.0.9 (2017-05-23)
     * Detect grid layouts and render them accordingly 
 # 0.2.0.8 (2017-05-21)
