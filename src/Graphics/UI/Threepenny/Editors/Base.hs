@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections     #-}
@@ -67,7 +68,21 @@ horizontal x y               = Horizontal [x,y]
 single :: Element -> Layout
 single = Single
 
+getHorizontal :: Layout -> Maybe [Layout]
+getHorizontal (Horizontal h) = Just h
+getHorizontal _ = Nothing
+
+getSingle :: Layout -> Maybe Element
+getSingle (Single e) = Just e
+getSingle _ = Nothing
+
+-- getGridLayout :: Layout -> Maybe [[Element]]
+getGridLayout :: Layout -> Maybe [[Element]]
+getGridLayout (Vertical hh) = mapM getHorizontal hh >>= mapM (mapM getSingle)
+getGridLayout _ = Nothing
+
 runLayout :: Layout -> UI Element
+runLayout (getGridLayout -> Just g) = grid (fmap (fmap return) g) 
 runLayout (Vertical ll)   = column $ fmap runLayout ll
 runLayout (Horizontal ll) = row $ fmap runLayout ll
 runLayout (Single x)      = return x
@@ -177,7 +192,7 @@ editorSum
   :: (Ord tag, Show tag)
   => [(tag, Compose UI EditorDef a)] -> (a -> tag) -> Behavior a -> Compose UI EditorDef a
 editorSum options selector ba = Compose $ do
-  options <- traverse (\(tag, Compose mk) -> (tag,) <$> (mk >>= runEditorDef)) options
+  options <- mapM (\(tag, Compose mk) -> (tag,) <$> (mk >>= runEditorDef)) options
   let tag = selector <$> ba
   tag' <- calmB tag
   let build a = lookup a options
