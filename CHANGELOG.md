@@ -1,3 +1,5 @@
+# 0.2.0.9 (2017-05-23)
+    * Detect grid layouts and render them accordingly 
 # 0.2.0.8 (2017-05-21)
     * Bug fixes
 # 0.2.0.7 (2017-05-20)
