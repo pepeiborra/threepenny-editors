@@ -50,13 +50,13 @@ import           Generics.SOP hiding (Compose)
 import           Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny.Editors.Base as Base
 
--- | A newtype wrapper that provides a 'Profunctor' instance.
+-- | A function from 'Behavior' @a@ to 'Editor' @a@
 newtype EditorFactory a b = EditorFactory
   { run :: Behavior a -> Compose UI Base.EditorDef b
   }
 
 -- | Create an editor to display the argument.
---   User edits are fed back via the 'Tidings' 'rumors'.
+--   User edits are fed back via the 'edited' 'Event'.
 createEditor :: EditorFactory b a -> Behavior b -> UI (Base.Editor a)
 createEditor e b = getCompose (run e b) >>= Base.runEditorDef
 
@@ -66,6 +66,11 @@ instance Functor (EditorFactory a) where
 instance Profunctor EditorFactory where
   dimap g h (EditorFactory f) = EditorFactory $ \b -> h <$> f (g <$> b)
 
+
+-- | The class of 'Editable' datatypes.
+--   .
+--   Define your own instance by using the 'Applicative' composition operators or
+--   derive it via 'Generics.SOP'.
 class Editable a where
   editor :: EditorFactory a a
   default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a))) => EditorFactory a a
@@ -74,7 +79,7 @@ class Editable a where
 infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
--- | Horizontal applicative composition
+-- | Horizontal applicative composition.
 (|*|) :: EditorFactory s (b->a) -> EditorFactory s b -> EditorFactory s a
 a |*| b = EditorFactory $ \s -> run a s Base.|*| run b s
 
@@ -84,7 +89,7 @@ a |* e = EditorFactory $ \s -> run a s Base.|* e
 (*|) :: UI Element -> EditorFactory s a -> EditorFactory s a
 e *| a = EditorFactory $ \s -> e Base.*| run a s
 
--- | Vertical applicative composition
+-- | Vertical applicative composition.
 (-*-) :: EditorFactory s (b->a) -> EditorFactory s b -> EditorFactory s a
 a -*- b = EditorFactory $ \s -> run a s Base.-*- run b s
 
@@ -170,7 +175,7 @@ constructorEditorFor (Record _ fields) = dimap (unZ . unSOP) (SOP . Z) $ constru
 constructorEditorFor (Constructor _) = dimap (unZ . unSOP) (SOP . Z) editor
 constructorEditorFor Infix{} = dimap (unZ . unSOP) (SOP . Z) editor
 
--- | A generic editor for SOP types
+-- | A generic editor for SOP types.
 editorGeneric
   :: forall a .
      (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)))
