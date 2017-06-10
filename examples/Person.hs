@@ -80,9 +80,6 @@ instance SOP.HasDatatypeInfo Person
 instance SOP.Generic Person
 instance Default Person where def = Person Basic_ "First" "Last" (Just 18) def def
 
-editorLegalStatus :: EditorFactory LegalStatus LegalStatus
-editorLegalStatus = editorJust $ editorEnumBounded(pure(string.show))
-
 editorPerson :: EditorFactory Person Person
 editorPerson =
     (\fn ln a e ls b -> Person e fn ln a b ls)
@@ -90,7 +87,7 @@ editorPerson =
       -*- field "Last:"      lastName editor
       -*- field "Age:"       age editor
       -*- field "Education:" education editorEducation
-      -*- field "Status"     status editorLegalStatus
+      -*- field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
       -*- field "Brexiter"   brexiteer editor
 
 setup :: Window -> UI ()
@@ -98,7 +95,6 @@ setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
   person1 <- createEditor editorPerson person1B
   person2 <- createEditor editorGeneric person1B
-
   person1B <- stepper def (unionWith const (edited person1) (edited person2))
 
   getBody w #+ [grid
