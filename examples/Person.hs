@@ -28,30 +28,26 @@ instance SOP.Generic LegalStatus
 instance Default LegalStatus where def = Single
 
 data Education
-  = Basic_
-  | Intermediate_
-  | Other_ String
+  = Basic
+  | Intermediate
+  | Other String
   deriving (Eq, Ord, Read, Show, Generic)
 
-instance Default Education where def = Basic_
+instance Default Education where def = Basic
 
 getOther :: Education -> Maybe String
-getOther (Other_ s) = Just s
-getOther _          = Nothing
-
-data EducationTag = Basic | Intermediate | Other deriving (Eq,Ord,Show, Generic)
+getOther (Other s) = Just s
+getOther _         = Nothing
 
 editorEducation :: EditorFactory Education Education
 editorEducation = do
-    let selector x =
-          case x of
-            Basic_        -> Basic
-            Intermediate_ -> Intermediate
-            Other_ _      -> Other
+    let selector x = case x of
+            Other _ -> "Other"
+            _       -> show x
     editorSum
-      [ (Basic, const Basic_ <$> editorUnit)
-      , (Intermediate, const Intermediate_ <$> editorUnit)
-      , (Other, dimap (fromMaybe "" . getOther) Other_ editor)
+      [ ("Basic", const Basic <$> editorUnit)
+      , ("Intermediate", const Intermediate <$> editorUnit)
+      , ("Other", dimap (fromMaybe "" . getOther) Other editor)
       ]
       selector
 
@@ -78,7 +74,7 @@ data Person = Person
 instance Editable Person
 instance SOP.HasDatatypeInfo Person
 instance SOP.Generic Person
-instance Default Person where def = Person Basic_ "First" "Last" (Just 18) def def
+instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
 editorPerson :: EditorFactory Person Person
 editorPerson =
