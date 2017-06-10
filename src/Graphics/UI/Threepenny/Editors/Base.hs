@@ -161,12 +161,13 @@ editorReadShow b = Compose $ do
     let t = tidings b (readIt <$> editedDef e)
     return $ EditorDef t (editorDefLayout e)
 
+-- An editor that presents a choice of values.
 editorEnumBounded
   :: (Bounded a, Enum a, Ord a, Show a)
   => Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
 editorEnumBounded = editorSelection (pure $ enumFrom minBound)
 
--- | An editor that presents a dynamic list of options.
+-- | An editor that presents a dynamic choice of values.
 editorSelection
   :: Ord a
   => Behavior [a] -> Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
@@ -174,7 +175,7 @@ editorSelection options display b = Compose $ do
   l <- listBox options b display
   return $ EditorDef (tidings b (rumors $ userSelection l)) (single $ getElement l)
 
-
+-- | Ignores 'Nothing' values and only updates for 'Just' values
 editorJust :: (Behavior (Maybe b) -> Compose UI EditorDef (Maybe b))
   -> Behavior b
   -> Compose UI EditorDef b

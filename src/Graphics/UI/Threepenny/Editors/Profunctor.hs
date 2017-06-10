@@ -55,6 +55,8 @@ newtype EditorFactory a b = EditorFactory
   { run :: Behavior a -> Compose UI Base.EditorDef b
   }
 
+-- | Create an editor to display the argument.
+--   User edits are fed back via the 'Tidings' 'rumors'.
 createEditor :: EditorFactory b a -> Behavior b -> UI (Base.Editor a)
 createEditor e b = getCompose (run e b) >>= Base.runEditorDef
 
@@ -72,6 +74,7 @@ class Editable a where
 infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
+-- | Horizontal applicative composition
 (|*|) :: EditorFactory s (b->a) -> EditorFactory s b -> EditorFactory s a
 a |*| b = EditorFactory $ \s -> run a s Base.|*| run b s
 
@@ -81,6 +84,7 @@ a |* e = EditorFactory $ \s -> run a s Base.|* e
 (*|) :: UI Element -> EditorFactory s a -> EditorFactory s a
 e *| a = EditorFactory $ \s -> e Base.*| run a s
 
+-- | Vertical applicative composition
 (-*-) :: EditorFactory s (b->a) -> EditorFactory s b -> EditorFactory s a
 a -*- b = EditorFactory $ \s -> run a s Base.-*- run b s
 
@@ -98,9 +102,11 @@ field name f e = string name *| lmap f e
 editorUnit :: EditorFactory a ()
 editorUnit = EditorFactory $ \_ -> Base.editor (pure ())
 
+-- | An editor that presents a free form input.
 editorReadShow :: (Read a, Show a) => EditorFactory (Maybe a) (Maybe a)
 editorReadShow = EditorFactory Base.editorReadShow
 
+-- | An editor that presents a choice of values.
 editorEnumBounded
   :: (Show a, Ord a, Enum a, Bounded a)
   => Behavior (a -> UI Element) -> EditorFactory (Maybe a) (Maybe a )
@@ -110,7 +116,7 @@ editorEnumBounded display = EditorFactory $ Base.editorEnumBounded display
 editorJust :: EditorFactory (Maybe a) (Maybe a) -> EditorFactory a a
 editorJust e = EditorFactory $ Base.editorJust (run e)
 
--- | An editor that presents a dynamic list of options
+-- | An editor that presents a dynamic choice of values.
 editorSelection :: Ord a => Behavior [a] -> Behavior(a -> UI Element) -> EditorFactory (Maybe a) (Maybe a)
 editorSelection opts displ = EditorFactory $ Base.editorSelection opts displ
 
@@ -142,7 +148,7 @@ editorIdentity = dimap runIdentity Identity
 {--------------------------------------------
   Generic derivations
 ---------------------------------------------}
-
+-- | A generic editor for record types.
 editorGenericSimple
   :: forall a xs.
      (Generic a, HasDatatypeInfo a, All Editable xs, Code a ~ '[xs])
@@ -164,6 +170,7 @@ constructorEditorFor (Record _ fields) = dimap (unZ . unSOP) (SOP . Z) $ constru
 constructorEditorFor (Constructor _) = dimap (unZ . unSOP) (SOP . Z) editor
 constructorEditorFor Infix{} = dimap (unZ . unSOP) (SOP . Z) editor
 
+-- | A generic editor for SOP types
 editorGeneric
   :: forall a .
      (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)))
