@@ -19,7 +19,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
     Base.Editor(..)
   , Base.edited
   , Base.contents
-  , EditorFactory
+  , EditorFactory(..)
   , createEditor
   , Editable(..)
     -- ** Editor compoosition

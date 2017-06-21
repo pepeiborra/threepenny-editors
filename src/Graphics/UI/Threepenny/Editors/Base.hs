@@ -10,9 +10,11 @@ module Graphics.UI.Threepenny.Editors.Base
   , contents
   , Editable(..)
     -- ** Editor definitions
-  , EditorDef
+  , EditorDef(..)
   , runEditorDef
-    -- ** Editor compoosition
+    -- ** Layouts
+  , Layout(..)
+    -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
     -- ** Editor constructors
