@@ -1,3 +1,6 @@
+# 0.2.0.12 (2017-06-21)
+    * Export EditorDef and EditorFactory constructors to allow for
+      wrapping of custom controls
 # 0.2.0.11 (2017-06-10)
     * Documentation only release.
 # 0.2.0.10 (2017-05-23)
