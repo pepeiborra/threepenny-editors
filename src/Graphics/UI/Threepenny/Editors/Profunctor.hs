@@ -22,7 +22,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , EditorFactory(..)
   , createEditor
   , Editable(..)
-    -- ** Editor compoosition
+    -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
