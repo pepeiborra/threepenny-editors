@@ -1,5 +1,8 @@
+# 0.2.0.13 (2017-06-22)
+    * Added `liftEditor` to expose the underlying `Element` of an editor.
+      This enables setting attributes in the element, including class and id.
 # 0.2.0.12 (2017-06-21)
-    * Export EditorDef and EditorFactory constructors to allow for
+    * Export `EditorDef` and `EditorFactory` constructors to allow for
       wrapping of custom controls
 # 0.2.0.11 (2017-06-10)
     * Documentation only release.
