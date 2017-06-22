@@ -21,6 +21,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , Base.contents
   , EditorFactory(..)
   , createEditor
+  , liftEditor
   , Editable(..)
     -- ** Editor composition
   , (|*|), (|*), (*|)
@@ -54,6 +55,11 @@ import qualified Graphics.UI.Threepenny.Editors.Base as Base
 newtype EditorFactory a b = EditorFactory
   { run :: Behavior a -> Compose UI Base.EditorDef b
   }
+
+liftEditor :: (UI Element -> UI Element) -> EditorFactory a b -> EditorFactory a b
+liftEditor f (EditorFactory run) = EditorFactory $ \b ->
+  case run b of
+    Compose uidef -> Compose $ fmap (Base.liftEditorDef f) uidef
 
 -- | Create an editor to display the argument.
 --   User edits are fed back via the 'edited' 'Event'.
