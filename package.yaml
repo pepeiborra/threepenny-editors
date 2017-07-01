@@ -39,6 +39,7 @@ library:
     - generics-sop
     - profunctors
     - threepenny-gui > 0.7
+    - casing
 
 executables:
   person:

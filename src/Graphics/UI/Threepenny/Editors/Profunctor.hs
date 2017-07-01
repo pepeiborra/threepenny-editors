@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DefaultSignatures #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -41,6 +42,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   )where
 
 import           Data.Bifunctor
+import           Data.Char
 import           Data.Default
 import           Data.Functor.Compose
 import           Data.Functor.Identity
@@ -50,6 +52,7 @@ import           Data.Proxy
 import           Generics.SOP hiding (Compose)
 import           Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny.Editors.Base as Base
+import           Text.Casing
 
 -- | A function from 'Behavior' @a@ to 'Editor' @a@
 newtype EditorFactory a b = EditorFactory
@@ -252,7 +255,15 @@ fieldsEditor :: forall xs . All Editable xs => NP (K String) xs -> NP (EditorFac
 fieldsEditor = go id sList where
   go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (K String) ys -> NP (EditorFactory (NP I xs)) ys
   go _ SNil Nil = Nil
-  go f SCons (K fn :* xs) = field fn (unI . hd . f) editor :* go (tl . f) sList xs
+  go f SCons (K fn :* xs) = field (toFieldLabel fn) (unI . hd . f) editor :* go (tl . f) sList xs
+
+toFieldLabel :: String -> String
+toFieldLabel (fromAny -> Identifier (x:xx)) =
+  unwords (onHead toUpper x : map (onHead toLower) xx) ++ ":"
+    where
+      onHead f (x:xx) = f x : xx
+      onHead _ [] = []
+toFieldLabel _ = ""
 
 -- | EditorFactory with an Applicative instance for vertical composition
 newtype VEF a b = VEF {unVEF :: EditorFactory a b} deriving (Functor, Profunctor)
