@@ -1,7 +1,9 @@
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedLists   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC  #-}
 module Graphics.UI.Threepenny.Editors.Base
   ( -- * Editors
@@ -28,11 +30,15 @@ module Graphics.UI.Threepenny.Editors.Base
   , Compose(..)
   )where
 
-import           Control.Monad
+import           Data.Foldable (length)
 import           Data.Functor.Compose
 import           Data.Maybe
+import           Data.Monoid
+import           Data.Sequence (Seq)
+import qualified Data.Sequence as Seq
+import           GHC.Exts (IsList(..))
 import           Graphics.UI.Threepenny.Attributes
-import           Graphics.UI.Threepenny.Core
+import           Graphics.UI.Threepenny.Core as UI
 import           Graphics.UI.Threepenny.Elements
 import           Graphics.UI.Threepenny.Events
 import           Graphics.UI.Threepenny.Widgets
@@ -54,37 +60,31 @@ contents = facts . editorTidings
 instance Widget (Editor a) where
   getElement = editorElement
 
-data Layout
-  = Horizontal [Layout]
-  | Vertical [Layout]
-  | Single Element
+newtype Layout
+  = Grid (Seq (Seq (Maybe Element)))-- ^ A non empty list of rows, where all the rows are assumed to have the same length
 
 vertical, horizontal :: Layout -> Layout -> Layout
-vertical (Vertical xx) y = Vertical (xx ++ [y])
-vertical x (Vertical yy) = Vertical (x:yy)
-vertical x y             = Vertical [x,y]
+vertical (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList -> l2)) =
+    Grid $ fmap pad1 rows <> fmap pad2 rows'
+  where
+    pad l1 l2 | l1 >= l2   = id
+              | otherwise = (<> Seq.replicate (l2-l1) Nothing)
+    pad1 = pad l1 l2
+    pad2 = pad l2 l1
 
-horizontal (Horizontal xx) y = Horizontal (xx ++ [y])
-horizontal x (Horizontal yy) = Horizontal (x : yy)
-horizontal x y               = Horizontal [x,y]
+horizontal (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList -> l2)) =
+    Grid $ Seq.zipWith (<>) (pad1 rows) (pad2 rows')
+  where
+    pad l1 l2 | l1 >= l2 = id
+              | otherwise = \x -> let padding = Seq.replicate (length $ head $ toList x) Nothing in x <> Seq.replicate (l2-l1) padding
+    pad1 = pad l1 l2
+    pad2 = pad l2 l1
 
 single :: Element -> Layout
-single = Single
-
-getHorizontal :: Layout -> [Layout]
-getHorizontal (Horizontal h) = h
-getHorizontal other = [other]
-
-getSingleOrGrid :: Layout -> UI Element
-getSingleOrGrid (Single e) = return e
-getSingleOrGrid other = runLayout other
-
-getGridLayout :: Layout -> UI [[Element]]
-getGridLayout (Vertical hh) = mapM (mapM getSingleOrGrid) $ fmap getHorizontal hh
-getGridLayout other = getGridLayout $ Vertical [other]
+single x = Grid [[Just x]]
 
 runLayout :: Layout -> UI Element
-runLayout = getGridLayout >=> grid . fmap (fmap return)
+runLayout (Grid rows) = grid (toList $ fmap (fmap (maybe new return). toList) rows)
 
 data EditorDef a = EditorDef
   { editorDefTidings :: Tidings a
@@ -209,7 +209,7 @@ editorSum options selector ba = Compose $ do
   nestedEditorDef <-
     new # sink children ((\x -> [maybe (error "editorSum") editorElement (build x)]) <$> tag')
   --
-  let composed = Vertical [single (getElement l), single nestedEditorDef]
+  let composed = vertical (single (getElement l)) (single nestedEditorDef)
   -- the result event fires when any of the nested editors or the tag selector fire.
   let editedEvents = fmap (edited . snd) options
       eTag = filterJust $ rumors (userSelection l)

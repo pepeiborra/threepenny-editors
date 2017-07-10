@@ -35,6 +35,7 @@ library:
     - Graphics.UI.Threepenny.Editors.Profunctor
   dependencies:
     - base >= 4.7 && < 5
+    - containers
     - data-default
     - generics-sop
     - profunctors
