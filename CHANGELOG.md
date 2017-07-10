@@ -1,3 +1,5 @@
+# 0.2.0.14 (2017-07-01)
+    * Improved rendering of field names in generic editors.
 # 0.2.0.13 (2017-06-22)
     * Added `liftEditor` to expose the underlying `Element` of an editor.
       This enables setting attributes in the element, including class and id.
