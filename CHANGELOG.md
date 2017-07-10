@@ -1,4 +1,6 @@
-# 0.2.0.14 (2017-07-10)
+# 0.2.0.16 (2017-07-10)
+    * Improvements to the layout engine to always produce a grid. Experimental.
+# 0.2.0.15 (2017-07-10)
     * Expose Vertically and Horizontally for use with ApplicativeDo
 # 0.2.0.14 (2017-07-01)
     * Improved rendering of field names in generic editors.
