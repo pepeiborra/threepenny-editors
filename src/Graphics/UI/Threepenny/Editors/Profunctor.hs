@@ -28,6 +28,8 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
+  , Vertically(..)
+  , Horizontally(..)
     -- ** Editor constructors
   , editorUnit
   , editorIdentity
@@ -239,11 +241,11 @@ composeEditorFactory (Fn inj) (Fn prj) = dimap f (SOP . unK . inj)
     f = fromMaybe def . getCompose . prj . K . hexpand (Compose Nothing) . hmap (Compose . Just) . unSOP
 
 constructorEditorFor' :: (SListI xs, All Editable xs) => NP FieldInfo xs -> EditorFactory (NP I xs) (NP I xs)
-constructorEditorFor' fields = unVEF $ hsequence $ hliftA VEF $ fieldsEditor (hliftA (K . fieldName) fields)
+constructorEditorFor' fields = vertically $ hsequence $ hliftA Vertically $ fieldsEditor (hliftA (K . fieldName) fields)
 
 -- | Tuple editor without fields
 instance All Editable xs => Editable (NP I xs) where
-  editor = unHEF $ hsequence $ hliftA HEF tupleEditor
+  editor = horizontally $ hsequence $ hliftA Horizontally tupleEditor
 
 tupleEditor :: forall xs . All Editable xs => NP (EditorFactory (NP I xs)) xs
 tupleEditor = go id sList where
@@ -265,17 +267,33 @@ toFieldLabel (fromAny -> Identifier (x:xx)) =
       onHead _ [] = []
 toFieldLabel _ = ""
 
--- | EditorFactory with an Applicative instance for vertical composition
-newtype VEF a b = VEF {unVEF :: EditorFactory a b} deriving (Functor, Profunctor)
-instance Applicative (VEF a) where
-  pure x = VEF $ const x <$> editorUnit
-  VEF a <*> VEF b = VEF (a -*- b)
+-- | Applicative instance for vertical composition of editor factories.
+--
+--   This can be used in conjunction with ApplicativeDo as:
+--
+-- > editorPerson = vertically $ do
+-- >       firstName <- Vertically $ field "First:" firstName editor
+-- >       lastName  <- Vertically $ field "Last:"  lastName editor
+-- >       age       <- Vertically $ field "Age:"   age editor
+-- >       return Person{..}
 
--- | EditorFactory with an Applicative instance for horizontal composition
-newtype HEF a b = HEF {unHEF :: EditorFactory a b} deriving (Functor, Profunctor)
-instance Applicative (HEF a) where
-  pure x = HEF $ const x <$> editorUnit
-  HEF a <*> HEF b = HEF (a |*| b)
+newtype Vertically a b = Vertically {vertically :: EditorFactory a b} deriving (Functor, Profunctor)
+instance Applicative (Vertically a) where
+  pure x = Vertically $ const x <$> editorUnit
+  Vertically a <*> Vertically b = Vertically (a -*- b)
+
+-- | Applicative instance for horizontal composition of editor factories.
+--   This can be used in conjunction with ApplicativeDo as:
+--
+-- > editorPerson = horizontally $ do
+-- >       firstName <- Horizontally $ field "First:" firstName editor
+-- >       lastName  <- Horizontally $ field "Last:"  lastName editor
+-- >       age       <- Horizontally $ field "Age:"   age editor
+-- >       return Person{..}
+newtype Horizontally a b = Horizontally {horizontally :: EditorFactory a b} deriving (Functor, Profunctor)
+instance Applicative (Horizontally a) where
+  pure x = Horizontally $ const x <$> editorUnit
+  Horizontally a <*> Horizontally b = Horizontally (a |*| b)
 
 instance (Applicative f, All Default xs) => Default (NP f xs) where
   def = hcpure (Proxy @ Default) (pure def)

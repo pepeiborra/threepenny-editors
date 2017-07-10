@@ -7,10 +7,12 @@ module Graphics.UI.Threepenny.Editors
   , EditorFactory
   , createEditor
   , Editable(..)
-    -- ** Editor compoosition
+    -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
+  , Vertically(..)
+  , Horizontally(..)
     -- ** Editor constructors
   , editorUnit
   , editorIdentity

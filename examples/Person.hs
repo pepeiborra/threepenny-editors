@@ -1,3 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveGeneric       #-}
 {-# LANGUAGE RecursiveDo         #-}
@@ -77,14 +79,14 @@ instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
 editorPerson :: EditorFactory Person Person
-editorPerson =
-    (\fn ln a e ls b -> Person e fn ln a b ls)
-      <$> field "First:"     firstName editor
-      -*- field "Last:"      lastName editor
-      -*- field "Age:"       age editor
-      -*- field "Education:" education editorEducation
-      -*- field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
-      -*- field "Brexiter"   brexiteer editor
+editorPerson = vertically $ do
+      firstName <- Vertically $ field "First:"     firstName editor
+      lastName  <- Vertically $ field "Last:"      lastName editor
+      age       <- Vertically $ field "Age:"       age editor
+      education <- Vertically $ field "Education:" education editorEducation
+      status    <- Vertically $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- Vertically $ field "Brexiter"   brexiteer editor
+      return Person{..}
 
 setup :: Window -> UI ()
 setup w = void $ mdo
