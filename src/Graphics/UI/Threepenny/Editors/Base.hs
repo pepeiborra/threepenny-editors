@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveFunctor     #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedLists   #-}
+{-# LANGUAGE PatternSynonyms   #-}
 {-# LANGUAGE TupleSections     #-}
 {-# LANGUAGE TypeFamilies      #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -16,7 +17,7 @@ module Graphics.UI.Threepenny.Editors.Base
   , runEditorDef
   , liftEditorDef
     -- ** Layouts
-  , Layout(..)
+  , Layout(Grid, Single)
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
@@ -34,7 +35,7 @@ import           Data.Foldable (length)
 import           Data.Functor.Compose
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Sequence (Seq)
+import           Data.Sequence (Seq, viewl, ViewL(..))
 import qualified Data.Sequence as Seq
 import           GHC.Exts (IsList(..))
 import           Graphics.UI.Threepenny.Attributes
@@ -63,6 +64,12 @@ instance Widget (Editor a) where
 newtype Layout
   = Grid (Seq (Seq (Maybe Element)))-- ^ A non empty list of rows, where all the rows are assumed to have the same length
 
+pattern Single :: Element -> Layout
+pattern Single x <- Grid (Singleton (Singleton (Just x))) where Single x = Grid [[Just x]]
+
+pattern Singleton :: a -> Seq a
+pattern Singleton x <- (viewl -> x :< (viewl -> EmptyL)) where Singleton x = [x]
+
 vertical, horizontal :: Layout -> Layout -> Layout
 vertical (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList -> l2)) =
     Grid $ fmap pad1 rows <> fmap pad2 rows'
@@ -79,9 +86,6 @@ horizontal (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toLis
               | otherwise = \x -> let padding = Seq.replicate (length $ head $ toList x) Nothing in x <> Seq.replicate (l2-l1) padding
     pad1 = pad l1 l2
     pad2 = pad l2 l1
-
-single :: Element -> Layout
-single x = Grid [[Just x]]
 
 runLayout :: Layout -> UI Element
 runLayout (Grid rows) = grid (toList $ fmap (fmap (maybe new return). toList) rows)
@@ -128,7 +132,7 @@ a |*| b = Compose $ do
 e *| a = Compose $ do
   e <- e
   a <- getCompose a
-  let ea = horizontal (single e) (editorDefLayout a)
+  let ea = horizontal (Single e) (editorDefLayout a)
   return $ editorDef (editorDefTidings a) ea
 
 -- | Left-right composition of an element with a editor
@@ -136,7 +140,7 @@ e *| a = Compose $ do
 a |* e = Compose $ do
   e <- e
   a <- getCompose a
-  let ea = horizontal (editorDefLayout a) (single e)
+  let ea = horizontal (editorDefLayout a) (Single e)
   return $ editorDef (editorDefTidings a) ea
 
 -- | Top-down editor composition
@@ -152,7 +156,7 @@ a -*- b = Compose $ do
 e *- a = Compose $ do
   e <- e
   a <- getCompose a
-  let ea = vertical (single e) (editorDefLayout a)
+  let ea = vertical (Single e) (editorDefLayout a)
   return $ editorDef (editorDefTidings a) ea
 
 -- | Top-down composition of an element with a editor
@@ -160,7 +164,7 @@ e *- a = Compose $ do
 a -* e = Compose $ do
   e <- e
   a <- getCompose a
-  let ea = vertical (editorDefLayout a) (single e)
+  let ea = vertical (editorDefLayout a) (Single e)
   return $ editorDef (editorDefTidings a) ea
 
 editorReadShow :: (Read a, Show a) => Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
@@ -183,7 +187,7 @@ editorSelection
   => Behavior [a] -> Behavior(a -> UI Element) -> Behavior (Maybe a) -> Compose UI EditorDef (Maybe a)
 editorSelection options display b = Compose $ do
   l <- listBox options b display
-  return $ editorDef (tidings b (rumors $ userSelection l)) (single $ getElement l)
+  return $ editorDef (tidings b (rumors $ userSelection l)) (Single $ getElement l)
 
 -- | Ignores 'Nothing' values and only updates for 'Just' values
 editorJust :: (Behavior (Maybe b) -> Compose UI EditorDef (Maybe b))
@@ -209,7 +213,7 @@ editorSum options selector ba = Compose $ do
   nestedEditorDef <-
     new # sink children ((\x -> [maybe (error "editorSum") editorElement (build x)]) <$> tag')
   --
-  let composed = vertical (single (getElement l)) (single nestedEditorDef)
+  let composed = vertical (Single (getElement l)) (Single nestedEditorDef)
   -- the result event fires when any of the nested editors or the tag selector fire.
   let editedEvents = fmap (edited . snd) options
       eTag = filterJust $ rumors (userSelection l)
@@ -248,7 +252,7 @@ calmE e =
 instance Editable () where
   editor b = Compose $ do
     t <- new
-    return $ editorDef (tidings b never) (single t)
+    return $ editorDef (tidings b never) (Single t)
 
 instance a ~ Char => Editable [a] where
   editor b = Compose $ do
@@ -258,12 +262,12 @@ instance a ~ Char => Editable [a] where
       initialValue <- currentValue b
       _ <- runUI w $ set value initialValue (element t)
       return ()
-    return $ editorDef (userText t) (single $ getElement t)
+    return $ editorDef (userText t) (Single $ getElement t)
 
 instance Editable Bool where
   editor b = Compose $ do
     t <- sink checked b $ input # set type_ "checkbox"
-    return $ editorDef (tidings b $ checkedChange t) (single t)
+    return $ editorDef (tidings b $ checkedChange t) (Single t)
 
 instance Editable (Maybe Int) where editor = editorReadShow
 instance Editable (Maybe Double) where editor = editorReadShow
