@@ -1,3 +1,6 @@
+# 0.3.0 (2017-07-13)
+    * Version bump required to comply with the Haskell PvP, as the recent layout changes
+      were breaking changes due to deleted constructors.
 # 0.2.0.16 (2017-07-10)
     * Improvements to the layout engine to always produce a grid. Experimental.
 # 0.2.0.15 (2017-07-10)
