@@ -75,16 +75,19 @@ vertical, horizontal :: Layout -> Layout -> Layout
 vertical (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList -> l2)) =
     Grid $ fmap pad1 rows <> fmap pad2 rows'
   where
-    pad l1 l2 | l1 >= l2   = id
+    pad l1 l2 | l1 >= l2  = id
               | otherwise = (<> Seq.replicate (l2-l1) Nothing)
     pad1 = pad l1 l2
     pad2 = pad l2 l1
 
-horizontal (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList -> l2)) =
-    Grid $ Seq.zipWith (<>) (pad1 rows) (pad2 rows')
+horizontal (Grid rows@(length -> l1)) (Grid rows'@(length -> l2)) =
+  Grid $ Seq.zipWith (<>) (pad1 rows) (pad2 rows')
   where
-    pad l1 l2 | l1 >= l2 = id
-              | otherwise = \x -> let padding = Seq.replicate (length $ head $ toList x) Nothing in x <> Seq.replicate (l2-l1) padding
+    pad l1 l2
+      | l1 >= l2  = id
+      | otherwise = \x ->
+          let padding = Seq.replicate (length $ head $ toList x) Nothing
+          in x <> Seq.replicate (l2 - l1) padding
     pad1 = pad l1 l2
     pad2 = pad l2 l1
 
