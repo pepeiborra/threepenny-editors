@@ -204,7 +204,7 @@ editorGeneric' (ADT _ _ cc) = editorSum Base.vertical editors constructor where
 editorGeneric' (Newtype _ _ c) = constructorEditorFor c
 
 newtype Tag = Tag String deriving (Eq, Ord)
-instance Show Tag where show (Tag t) = t
+instance Show Tag where show (Tag t) = init $ toFieldLabel t
 
 constructorEditorsFor
   :: forall xx . (All (All Editable `And` All Default) xx)
