@@ -5,13 +5,14 @@
 {-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 import           Control.Monad
+import           Data.Coerce
 import           Data.Default
 import           Data.Maybe
 import           Data.Profunctor
 import qualified Generics.SOP                    as SOP
 import           GHC.Generics
 import           Graphics.UI.Threepenny.Core
-import           Graphics.UI.Threepenny.Editors
+import           Graphics.UI.Threepenny.Editors hiding (Single)
 import           Graphics.UI.Threepenny.Elements
 
 main :: IO ()
@@ -46,7 +47,7 @@ editorEducation = do
     let selector x = case x of
             Other _ -> "Other"
             _       -> show x
-    editorSum
+    editorSum horizontal
       [ ("Basic", const Basic <$> editorUnit)
       , ("Intermediate", const Intermediate <$> editorUnit)
       , ("Other", dimap (fromMaybe "" . getOther) Other editor)
@@ -78,27 +79,49 @@ instance SOP.HasDatatypeInfo Person
 instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
-editorPerson :: EditorFactory Person Person
-editorPerson = vertically $ do
-      firstName <- Vertically $ field "First:"     firstName editor
-      lastName  <- Vertically $ field "Last:"      lastName editor
-      age       <- Vertically $ field "Age:"       age editor
-      education <- Vertically $ field "Education:" education editorEducation
-      status    <- Vertically $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
-      brexiteer <- Vertically $ field "Brexiter"   brexiteer editor
-      return Person{..}
+editorPersonRows :: EditorFactory Person Person
+editorPersonRows = vertically $ do
+  (firstName, lastName) <- coerce $ horizontally $ do
+      firstName <- coerce $ field "First:"     firstName editor
+      lastName  <- coerce $ field "Last:"      lastName editor
+      return (firstName, lastName)
+  (age, education) <- coerce $ horizontally $ do
+      age       <- coerce $ field "Age:"       age editor
+      education <- coerce $ field "Education:" education editorEducation
+      return (age, education)
+  (status, brexiteer) <- coerce $ horizontally $ do
+      status    <- coerce $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- coerce $ field "Brexiter"   brexiteer editor
+      return (status, brexiteer)
+  return Person{..}
+
+editorPersonColumns :: EditorFactory Person Person
+editorPersonColumns = horizontally $ do
+  (firstName, lastName, age) <- coerce $ vertically $ do
+      firstName <- coerce $ field "First:"     firstName editor
+      lastName  <- coerce $ field "Last:"      lastName editor
+      age       <- coerce $ field "Age:"       age editor
+      return (firstName, lastName, age)
+  (education, status, brexiteer) <- coerce $ vertically $ do
+      education <- coerce $ field "Education:" education editorEducation
+      status    <- coerce $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- coerce $ field "Brexiter"   brexiteer editor
+      return (education, status, brexiteer)
+  return Person{..}
 
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
-  person1 <- createEditor editorPerson person1B
+  person1r <- createEditor editorPersonRows person1B
+  person1c <- createEditor editorPersonColumns person1B
   person2 <- createEditor editorGeneric person1B
-  person1B <- stepper def (unionWith const (edited person1) (edited person2))
+  person1B <- stepper def (head <$> unions [edited person1r, edited person1c, edited person2])
 
   getBody w #+ [grid
-    [ [return $ editorElement person1]
+    [ [return $ editorElement person1r]
+    , [hr]
+    , [return $ editorElement person1c]
     , [hr]
     , [return $ editorElement person2]
     , [hr]
-    , [sink text (show <$> contents person1) p]
     ]]

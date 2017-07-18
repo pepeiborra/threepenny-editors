@@ -24,6 +24,10 @@ module Graphics.UI.Threepenny.Editors
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
+    -- ** Layouts
+  , Layout(Grid, Single)
+  , horizontal
+  , vertical
   )where
 
 import Graphics.UI.Threepenny.Editors.Profunctor

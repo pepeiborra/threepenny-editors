@@ -22,7 +22,6 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , Base.contents
   , EditorFactory(..)
   , createEditor
-  , liftEditor
   , Editable(..)
     -- ** Editor composition
   , (|*|), (|*), (*|)
@@ -41,6 +40,10 @@ module Graphics.UI.Threepenny.Editors.Profunctor
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
+    -- ** Layouts
+  , Base.Layout(Grid, Single)
+  , Base.horizontal
+  , Base.vertical
   )where
 
 import           Data.Bifunctor
@@ -60,11 +63,6 @@ import           Text.Casing
 newtype EditorFactory a b = EditorFactory
   { run :: Behavior a -> Compose UI Base.EditorDef b
   }
-
-liftEditor :: (UI Element -> UI Element) -> EditorFactory a b -> EditorFactory a b
-liftEditor f (EditorFactory run) = EditorFactory $ \b ->
-  case run b of
-    Compose uidef -> Compose $ fmap (Base.liftEditorDef f) uidef
 
 -- | Create an editor to display the argument.
 --   User edits are fed back via the 'edited' 'Event'.
@@ -139,10 +137,10 @@ editorSelection opts displ = EditorFactory $ Base.editorSelection opts displ
 -- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Show tag, Ord tag)
-  => [(tag, EditorFactory b b)] -> (b -> tag) -> EditorFactory b b
-editorSum nested tagger = EditorFactory $ \b ->
+  => (Base.Layout -> Base.Layout -> Base.Layout) -> [(tag, EditorFactory b b)] -> (b -> tag) -> EditorFactory b b
+editorSum layout nested tagger = EditorFactory $ \b ->
   let nested' = [ (tag, run f b) | (tag, f) <- nested ]
-  in Base.editorSum nested' tagger b
+  in Base.editorSum layout nested' tagger b
 
 instance Editable () where editor = EditorFactory Base.editor
 instance Editable String where editor = EditorFactory Base.editor
@@ -198,7 +196,7 @@ editorGeneric'
      (All (All Editable `And` All Default) xx)
   => DatatypeInfo xx -> EditorFactory (SOP I xx) (SOP I xx)
 editorGeneric' (ADT _ _ (c :* Nil)) = constructorEditorFor c
-editorGeneric' (ADT _ _ cc) = editorSum editors constructor where
+editorGeneric' (ADT _ _ cc) = editorSum Base.vertical editors constructor where
   editors :: [(Tag, EditorFactory (SOP I xx) (SOP I xx))]
   editors = map (first Tag) $ constructorEditorsFor cc
   constructors = hmap (K . constructorName) cc
