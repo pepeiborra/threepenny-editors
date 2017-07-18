@@ -1,3 +1,7 @@
+# 0.4.0 (2017-07-13)
+    * Fixed a bug in the layout engine
+    * Dropped editorDefSetup
+    * Exposed the Layout primitives
 # 0.3.0 (2017-07-13)
     * Version bump required to comply with the Haskell PvP, as the recent layout changes
       were breaking changes due to deleted constructors.
