@@ -1,3 +1,5 @@
+# 0.4.1 (2017-07-13)
+    * Improved the rendering of constructors in generic sum editors
 # 0.4.0 (2017-07-13)
     * Fixed a bug in the layout engine
     * Dropped editorDefSetup
