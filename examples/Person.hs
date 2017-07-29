@@ -47,7 +47,7 @@ editorEducation = do
     let selector x = case x of
             Other _ -> "Other"
             _       -> show x
-    editorSum horizontal
+    editorSum beside
       [ ("Basic", const Basic <$> editorUnit)
       , ("Intermediate", const Intermediate <$> editorUnit)
       , ("Other", dimap (fromMaybe "" . getOther) Other editor)

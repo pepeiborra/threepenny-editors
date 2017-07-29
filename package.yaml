@@ -39,6 +39,7 @@ library:
     - containers
     - data-default
     - generics-sop
+    - lens
     - profunctors
     - threepenny-gui > 0.7
     - casing

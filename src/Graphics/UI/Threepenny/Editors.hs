@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ViewPatterns               #-}
 {-# OPTIONS_GHC -Wno-orphans            #-}
+{-# OPTIONS_GHC -Wno-name-shadowing     #-}
 
 module Graphics.UI.Threepenny.Editors
   ( -- * Editors
@@ -18,7 +19,6 @@ module Graphics.UI.Threepenny.Editors
   , edited
   , contents
   , editorElement
-  , editorTidings
   , EditorFactory
   , createEditor
   , Editable(..)
@@ -41,9 +41,11 @@ module Graphics.UI.Threepenny.Editors
   , editorGenericSimple
     -- ** Layouts
   , Layout(Grid, Single)
-  , horizontal
-  , vertical
+  , above
+  , beside
   , runLayout
+  , Vertical(..)
+  , Horizontal(..)
   ) where
 
 import           Data.Bifunctor
@@ -151,7 +153,7 @@ editorGeneric'
      (All (All Editable `And` All Default) xx)
   => DatatypeInfo xx -> EditorFactory Layout (SOP I xx) (SOP I xx)
 editorGeneric' (ADT _ _ (c :* Nil)) = constructorEditorFor c
-editorGeneric' (ADT _ _ cc) = editorSum vertical editors constructor where
+editorGeneric' (ADT _ _ cc) = editorSum above editors constructor where
   editors :: [(Tag, EditorFactory Layout (SOP I xx) (SOP I xx))]
   editors = first Tag <$> constructorEditorsFor cc
   constructors = hmap (K . constructorName) cc

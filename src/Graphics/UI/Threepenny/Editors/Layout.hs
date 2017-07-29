@@ -1,13 +1,16 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ViewPatterns    #-}
+{-# OPTIONS_GHC -Wno-name-shadowing     #-}
 
 module Graphics.UI.Threepenny.Editors.Layout
   (
     Layout(Grid, Single)
-  , horizontal
-  , vertical
+  , beside
+  , above
   , runLayout
+  , Vertical(..)
+  , Horizontal(..)
   ) where
 
 import           Data.Foldable                     (length)
@@ -27,8 +30,8 @@ pattern Single x <- Grid (Singleton (Singleton (Just x))) where Single x = Grid 
 pattern Singleton :: a -> Seq a
 pattern Singleton x <- (viewl -> x :< (viewl -> EmptyL)) where Singleton x = [x]
 
-vertical, horizontal :: Layout -> Layout -> Layout
-vertical (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList -> l2)) =
+above, beside :: Layout -> Layout -> Layout
+above (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList -> l2)) =
     Grid $ fmap pad1 rows <> fmap pad2 rows'
   where
     pad l1 l2 | l1 >= l2  = id
@@ -36,7 +39,7 @@ vertical (Grid rows@(length.head.toList -> l1)) (Grid rows'@(length.head.toList 
     pad1 = pad l1 l2
     pad2 = pad l2 l1
 
-horizontal (Grid rows@(length -> l1)) (Grid rows'@(length -> l2)) =
+beside (Grid rows@(length -> l1)) (Grid rows'@(length -> l2)) =
   Grid $ Seq.zipWith (<>) (pad1 rows) (pad2 rows')
   where
     pad l1 l2
@@ -49,3 +52,15 @@ horizontal (Grid rows@(length -> l1)) (Grid rows'@(length -> l2)) =
 
 runLayout :: Layout -> UI Element
 runLayout (Grid rows) = grid (toList $ fmap (fmap (maybe new return). toList) rows)
+
+newtype Vertical = Vertical { vertical :: Layout}
+
+instance Monoid Vertical where
+  mempty = Vertical $ Grid [[Nothing]]
+  mappend (Vertical a) (Vertical b)= Vertical $ above a b
+
+newtype Horizontal = Horizontal { horizontal :: Layout}
+
+instance Monoid Horizontal where
+  mempty = Horizontal $ Grid [[Nothing]]
+  mappend (Horizontal a) (Horizontal b)= Horizontal $ beside a b

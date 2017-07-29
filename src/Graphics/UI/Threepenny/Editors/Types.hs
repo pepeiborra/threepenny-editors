@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TupleSections              #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
+{-# OPTIONS_GHC -fdefer-type-errors      #-}
 
 module Graphics.UI.Threepenny.Editors.Types
   (
@@ -10,7 +11,6 @@ module Graphics.UI.Threepenny.Editors.Types
   , edited
   , contents
   , editorElement
-  , editorTidings
   , EditorFactory(..)
   , createEditor
     -- ** Editor composition
@@ -29,9 +29,8 @@ module Graphics.UI.Threepenny.Editors.Types
   ) where
 
 import           Control.Applicative
+import           Control.Lens hiding ((#), beside, children)
 import           Data.Functor.Compose
-import           Data.Functor.Identity
-import           Data.Profunctor
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Editors.Layout
 import           Graphics.UI.Threepenny.Editors.Utils
@@ -46,12 +45,8 @@ data Editor editorElement a = Editor
   deriving Functor
 
 -- | A lens over the 'editorElement' field
-editorElement :: Functor f => (el -> f el') -> Editor el a -> f (Editor el' a)
+editorElement :: Lens (Editor el a) (Editor el' a) el el'
 editorElement f (Editor t el) = Editor t <$> f el
-
--- | A lens over the 'editorTidings' field
-editorTidings :: Functor f => (el -> f el') -> Editor el a -> f (Editor el' a)
-editorTidings f (Editor t el) = Editor t <$> f el
 
 edited :: Editor el a -> Event a
 edited = rumors . _editorTidings
@@ -75,11 +70,22 @@ createEditor e b = runEF e b >>= runEditor
 -- | A function from 'Behavior' @a@ to 'Editor' @b@
 newtype EditorFactory el a b = EF {runEF :: Behavior a -> UI (Editor el b)}
 
+_EditorFactory :: Iso (EditorFactory el a b) (EditorFactory el' a' b') (Behavior a -> UI (Editor el b)) (Behavior a' -> UI (Editor el' b'))
+_EditorFactory = iso runEF EF
+
 instance Functor (EditorFactory el a) where
   fmap = dimap id
 
 instance Profunctor (EditorFactory el) where
   dimap g h (EF f) = EF $ \b -> getCompose $ h <$> Compose (f (g <$> b))
+
+instance Monoid el => Applicative (EditorFactory el a) where
+  pure x = EF $ \_ -> return $ Editor (pure x) mempty
+  a <*> b = EF $ \s -> do
+    a <- runEF a s
+    b <- runEF b s
+    let ab = mappend (_editorElement a) (_editorElement b)
+    return $ Editor (_editorTidings a <*> _editorTidings b) ab
 
 -- | Applicative instance for vertical composition of editor factories.
 --
@@ -109,57 +115,38 @@ instance Applicative (Horizontally a) where
   pure x = Horizontally $ const x <$> editorUnit
   Horizontally a <*> Horizontally b = Horizontally (a |*| b)
 
-
 infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
+editorFactoryElement :: Setter (EditorFactory el a b) (EditorFactory el' a b) el el'
+editorFactoryElement = _EditorFactory.mapped.mapped.editorElement
+
+liftElement :: UI el -> EditorFactory el a ()
+liftElement el = EF $ \_ -> Editor (pure ()) <$> el
+
 -- | Left-right editor composition
 (|*|) :: EditorFactory Layout s (b -> a) -> EditorFactory Layout s b -> EditorFactory Layout s a
-a |*| b = EF $ \s -> do
-  a <- runEF a s
-  b <- runEF b s
-  let ab = horizontal (_editorElement a) (_editorElement b)
-  return $ Editor (_editorTidings a <*> _editorTidings b) ab
+a |*| b = over editorFactoryElement horizontal $ over editorFactoryElement Horizontal a <*> over editorFactoryElement Horizontal b
 
 -- | Left-right composition of an editorElement with a editor
 (*|) :: UI Element -> EditorFactory Layout s a -> EditorFactory Layout s a
-e *| a = EF $ \s -> do
-  e <- e
-  a <- runEF a s
-  let ea = horizontal (Single e) (_editorElement a)
-  return $ Editor (_editorTidings a) ea
+e *| a = over editorFactoryElement horizontal $ liftElement(Horizontal . Single <$> e) *> over editorFactoryElement Horizontal a
 
 -- | Left-right composition of an editorElement with a editor
 (|*) :: EditorFactory Layout s a -> UI Element -> EditorFactory Layout s a
-a |* e = EF $ \s -> do
-  e <- e
-  a <- runEF a s
-  let ea = horizontal (_editorElement a) (Single e)
-  return $ Editor (_editorTidings a) ea
+a |* e = over editorFactoryElement horizontal $ over editorFactoryElement Horizontal a <* liftElement(Horizontal . Single <$> e)
 
--- | Top-down editor composition
+-- | Left-right editor composition
 (-*-) :: EditorFactory Layout s (b -> a) -> EditorFactory Layout s b -> EditorFactory Layout s a
-a -*- b = EF $ \s -> do
-  a <- runEF a s
-  b <- runEF b s
-  let ab = vertical (_editorElement a) (_editorElement b)
-  return $ Editor (_editorTidings a <*> _editorTidings b) ab
+a -*- b = over editorFactoryElement vertical $ over editorFactoryElement Vertical a <*> over editorFactoryElement Vertical b
 
--- | Top-down composition of an editorElement with a editor
+-- | Left-right composition of an editorElement with a editor
 (*-) :: UI Element -> EditorFactory Layout s a -> EditorFactory Layout s a
-e *- a = EF $ \s -> do
-  e <- e
-  a <- runEF a s
-  let ea = vertical (Single e) (_editorElement a)
-  return $ Editor (_editorTidings a) ea
+e *- a = over editorFactoryElement vertical $ liftElement(Vertical . Single <$> e) *> over editorFactoryElement Vertical a
 
--- | Top-down composition of an editorElement with a editor
+-- | Left-right composition of an editorElement with a editor
 (-*) :: EditorFactory Layout s a -> UI Element -> EditorFactory Layout s a
-a -* e = EF $ \s -> do
-  e <- e
-  a <- runEF a s
-  let ea = vertical (_editorElement a) (Single e)
-  return $ Editor (_editorTidings a) ea
+a -* e = over editorFactoryElement vertical $ over editorFactoryElement Vertical a <* liftElement(Vertical . Single <$> e)
 
 -- | A helper that arranges a label with the field name
 --   and the editor horizontally.
