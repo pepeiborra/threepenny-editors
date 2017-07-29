@@ -19,6 +19,7 @@ module Graphics.UI.Threepenny.Editors.Base
   , Layout(Grid, Single)
   , horizontal
   , vertical
+  , runLayout
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)

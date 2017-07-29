@@ -28,6 +28,7 @@ module Graphics.UI.Threepenny.Editors
   , Layout(Grid, Single)
   , horizontal
   , vertical
+  , runLayout
   )where
 
 import Graphics.UI.Threepenny.Editors.Profunctor

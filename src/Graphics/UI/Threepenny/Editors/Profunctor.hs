@@ -44,6 +44,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
   , Base.Layout(Grid, Single)
   , Base.horizontal
   , Base.vertical
+  , Base.runLayout
   )where
 
 import           Data.Bifunctor
