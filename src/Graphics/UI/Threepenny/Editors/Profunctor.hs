@@ -62,13 +62,13 @@ import           Text.Casing
 
 -- | A function from 'Behavior' @a@ to 'Editor' @a@
 newtype EditorFactory a b = EditorFactory
-  { run :: Behavior a -> Compose UI Base.EditorDef b
+  { run :: Behavior a -> Compose UI (Base.Editor Base.Layout) b
   }
 
 -- | Create an editor to display the argument.
 --   User edits are fed back via the 'edited' 'Event'.
-createEditor :: EditorFactory b a -> Behavior b -> UI (Base.Editor a)
-createEditor e b = getCompose (run e b) >>= Base.runEditorDef
+createEditor :: EditorFactory b a -> Behavior b -> UI (Base.Editor Element a)
+createEditor e b = getCompose (run e b) >>= Base.runEditor
 
 instance Functor (EditorFactory a) where
   fmap = dimap id

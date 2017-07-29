@@ -4,6 +4,8 @@ module Graphics.UI.Threepenny.Editors
     Editor(..)
   , edited
   , contents
+  , Base.editorElement
+  , Base.editorTidings
   , EditorFactory
   , createEditor
   , Editable(..)
@@ -31,4 +33,5 @@ module Graphics.UI.Threepenny.Editors
   , runLayout
   )where
 
+import qualified Graphics.UI.Threepenny.Editors.Base as Base
 import Graphics.UI.Threepenny.Editors.Profunctor

@@ -118,10 +118,10 @@ setup w = void $ mdo
   person1B <- stepper def (head <$> unions [edited person1r, edited person1c, edited person2])
 
   getBody w #+ [grid
-    [ [return $ editorElement person1r]
+    [ [return $ _editorElement person1r]
     , [hr]
-    , [return $ editorElement person1c]
+    , [return $ _editorElement person1c]
     , [hr]
-    , [return $ editorElement person2]
+    , [return $ _editorElement person2]
     , [hr]
     ]]
