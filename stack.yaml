@@ -8,3 +8,5 @@ flags:
   threepenny-editors:
     buildExamples: true
 
+ghc-options:
+  "*": -Wall
