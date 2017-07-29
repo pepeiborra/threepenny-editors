@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
@@ -12,6 +13,7 @@
 {-# LANGUAGE ViewPatterns               #-}
 {-# OPTIONS_GHC -Wno-orphans            #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
+{-# OPTIONS_GHC -Wno-duplicate-exports  #-}
 
 module Graphics.UI.Threepenny.Editors
   ( -- * Editors
@@ -19,15 +21,15 @@ module Graphics.UI.Threepenny.Editors
   , edited
   , contents
   , editorElement
-  , EditorFactory
+  , EditorFactory(Horizontally, horizontally, Vertically, vertically)
   , createEditor
   , Editable(..)
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
-  , Vertically(..)
-  , Horizontally(..)
+  , pattern Horizontally
+  , pattern Vertically
     -- ** Editor constructors
   , editorUnit
   , editorIdentity

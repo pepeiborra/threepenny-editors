@@ -1,8 +1,10 @@
-{-# LANGUAGE DeriveFunctor              #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TupleSections              #-}
+{-# LANGUAGE DataKinds       #-}
+{-# LANGUAGE DeriveFunctor   #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TupleSections   #-}
+{-# LANGUAGE ViewPatterns    #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
-{-# OPTIONS_GHC -fdefer-type-errors      #-}
+{-# OPTIONS_GHC -Wno-duplicate-exports  #-}
 
 module Graphics.UI.Threepenny.Editors.Types
   (
@@ -11,14 +13,15 @@ module Graphics.UI.Threepenny.Editors.Types
   , edited
   , contents
   , editorElement
-  , EditorFactory(..)
+  , EditorFactory(.., Horizontally, horizontally, Vertically, vertically)
   , createEditor
+  , editorFactoryElement
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
-  , Horizontally(..)
-  , Vertically(..)
+  , pattern Horizontally
+  , pattern Vertically
     -- ** Editor constructors
   , editorUnit
   , editorIdentity
@@ -29,7 +32,8 @@ module Graphics.UI.Threepenny.Editors.Types
   ) where
 
 import           Control.Applicative
-import           Control.Lens hiding ((#), beside, children)
+import           Control.Lens                          hiding (beside, children,
+                                                        ( # ))
 import           Data.Functor.Compose
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Editors.Layout
@@ -87,7 +91,7 @@ instance Monoid el => Applicative (EditorFactory el a) where
     let ab = mappend (_editorElement a) (_editorElement b)
     return $ Editor (_editorTidings a <*> _editorTidings b) ab
 
--- | Applicative instance for vertical composition of editor factories.
+-- | Applicative modifier for vertical composition of editor factories.
 --
 --   This can be used in conjunction with ApplicativeDo as:
 --
@@ -96,13 +100,10 @@ instance Monoid el => Applicative (EditorFactory el a) where
 -- >       lastName  <- Vertically $ field "Last:"  lastName editor
 -- >       age       <- Vertically $ field "Age:"   age editor
 -- >       return Person{..}
+pattern Vertically :: EditorFactory Layout a b -> EditorFactory Vertical a b
+pattern Vertically {vertically} <- (over editorFactoryElement getVertical -> vertically) where Vertically a = over editorFactoryElement Vertical a
 
-newtype Vertically a b = Vertically {vertically :: EditorFactory Layout a b} deriving (Functor, Profunctor)
-instance Applicative (Vertically a) where
-  pure x = Vertically $ const x <$> editorUnit
-  Vertically a <*> Vertically b = Vertically (a -*- b)
-
--- | Applicative instance for horizontal composition of editor factories.
+-- | Applicative modifier for horizontal composition of editor factories.
 --   This can be used in conjunction with ApplicativeDo as:
 --
 -- > editorPerson = horizontally $ do
@@ -110,14 +111,13 @@ instance Applicative (Vertically a) where
 -- >       lastName  <- Horizontally $ field "Last:"  lastName editor
 -- >       age       <- Horizontally $ field "Age:"   age editor
 -- >       return Person{..}
-newtype Horizontally a b = Horizontally {horizontally :: EditorFactory Layout a b} deriving (Functor, Profunctor)
-instance Applicative (Horizontally a) where
-  pure x = Horizontally $ const x <$> editorUnit
-  Horizontally a <*> Horizontally b = Horizontally (a |*| b)
+pattern Horizontally :: EditorFactory Layout a b -> EditorFactory Horizontal a b
+pattern Horizontally {horizontally} <- (over editorFactoryElement getHorizontal -> horizontally) where Horizontally a = over editorFactoryElement Horizontal a
 
 infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
+-- | A lens over the 'editorElement' field
 editorFactoryElement :: Setter (EditorFactory el a b) (EditorFactory el' a b) el el'
 editorFactoryElement = _EditorFactory.mapped.mapped.editorElement
 
@@ -126,27 +126,27 @@ liftElement el = EF $ \_ -> Editor (pure ()) <$> el
 
 -- | Left-right editor composition
 (|*|) :: EditorFactory Layout s (b -> a) -> EditorFactory Layout s b -> EditorFactory Layout s a
-a |*| b = over editorFactoryElement horizontal $ over editorFactoryElement Horizontal a <*> over editorFactoryElement Horizontal b
+a |*| b = over editorFactoryElement getHorizontal $ over editorFactoryElement Horizontal a <*> over editorFactoryElement Horizontal b
 
 -- | Left-right composition of an editorElement with a editor
 (*|) :: UI Element -> EditorFactory Layout s a -> EditorFactory Layout s a
-e *| a = over editorFactoryElement horizontal $ liftElement(Horizontal . Single <$> e) *> over editorFactoryElement Horizontal a
+e *| a = over editorFactoryElement getHorizontal $ liftElement(Horizontal . Single <$> e) *> over editorFactoryElement Horizontal a
 
 -- | Left-right composition of an editorElement with a editor
 (|*) :: EditorFactory Layout s a -> UI Element -> EditorFactory Layout s a
-a |* e = over editorFactoryElement horizontal $ over editorFactoryElement Horizontal a <* liftElement(Horizontal . Single <$> e)
+a |* e = over editorFactoryElement getHorizontal $ over editorFactoryElement Horizontal a <* liftElement(Horizontal . Single <$> e)
 
 -- | Left-right editor composition
 (-*-) :: EditorFactory Layout s (b -> a) -> EditorFactory Layout s b -> EditorFactory Layout s a
-a -*- b = over editorFactoryElement vertical $ over editorFactoryElement Vertical a <*> over editorFactoryElement Vertical b
+a -*- b = over editorFactoryElement getVertical $ over editorFactoryElement Vertical a <*> over editorFactoryElement Vertical b
 
 -- | Left-right composition of an editorElement with a editor
 (*-) :: UI Element -> EditorFactory Layout s a -> EditorFactory Layout s a
-e *- a = over editorFactoryElement vertical $ liftElement(Vertical . Single <$> e) *> over editorFactoryElement Vertical a
+e *- a = over editorFactoryElement getVertical $ liftElement(Vertical . Single <$> e) *> over editorFactoryElement Vertical a
 
 -- | Left-right composition of an editorElement with a editor
 (-*) :: EditorFactory Layout s a -> UI Element -> EditorFactory Layout s a
-a -* e = over editorFactoryElement vertical $ over editorFactoryElement Vertical a <* liftElement(Vertical . Single <$> e)
+a -* e = over editorFactoryElement getVertical $ over editorFactoryElement Vertical a <* liftElement(Vertical . Single <$> e)
 
 -- | A helper that arranges a label with the field name
 --   and the editor horizontally.

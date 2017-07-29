@@ -81,31 +81,31 @@ instance Default Person where def = Person Basic "First" "Last" (Just 18) def de
 
 editorPersonRows :: EditorFactory Layout Person Person
 editorPersonRows = vertically $ do
-  (firstName, lastName) <- coerce $ horizontally $ do
-      firstName <- coerce $ field "First:"     firstName editor
-      lastName  <- coerce $ field "Last:"      lastName editor
+  (firstName, lastName) <- Vertically $ horizontally $ do
+      firstName <- Horizontally $ field "First:"     firstName editor
+      lastName  <- Horizontally $ field "Last:"      lastName editor
       return (firstName, lastName)
-  (age, education) <- coerce $ horizontally $ do
-      age       <- coerce $ field "Age:"       age editor
-      education <- coerce $ field "Education:" education editorEducation
+  (age, education) <- Vertically $ horizontally $ do
+      age       <- Horizontally $ field "Age:"       age editor
+      education <- Horizontally $ field "Education:" education editorEducation
       return (age, education)
-  (status, brexiteer) <- coerce $ horizontally $ do
-      status    <- coerce $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
-      brexiteer <- coerce $ field "Brexiter"   brexiteer editor
+  (status, brexiteer) <- Vertically $ horizontally $ do
+      status    <- Horizontally $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- Horizontally $ field "Brexiter"   brexiteer editor
       return (status, brexiteer)
   return Person{..}
 
 editorPersonColumns :: EditorFactory Layout Person Person
 editorPersonColumns = horizontally $ do
-  (firstName, lastName, age) <- coerce $ vertically $ do
-      firstName <- coerce $ field "First:"     firstName editor
-      lastName  <- coerce $ field "Last:"      lastName editor
-      age       <- coerce $ field "Age:"       age editor
+  (firstName, lastName, age) <- Horizontally $ vertically $ do
+      firstName <- Vertically $ field "First:"     firstName editor
+      lastName  <- Vertically $ field "Last:"      lastName editor
+      age       <- Vertically $ field "Age:"       age editor
       return (firstName, lastName, age)
-  (education, status, brexiteer) <- coerce $ vertically $ do
-      education <- coerce $ field "Education:" education editorEducation
-      status    <- coerce $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
-      brexiteer <- coerce $ field "Brexiter"   brexiteer editor
+  (education, status, brexiteer) <- Horizontally $ vertically $ do
+      education <- Vertically $ field "Education:" education editorEducation
+      status    <- Vertically $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- Vertically $ field "Brexiter"   brexiteer editor
       return (education, status, brexiteer)
   return Person{..}
 

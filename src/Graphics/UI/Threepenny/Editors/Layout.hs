@@ -53,13 +53,13 @@ beside (Grid rows@(length -> l1)) (Grid rows'@(length -> l2)) =
 runLayout :: Layout -> UI Element
 runLayout (Grid rows) = grid (toList $ fmap (fmap (maybe new return). toList) rows)
 
-newtype Vertical = Vertical { vertical :: Layout}
+newtype Vertical = Vertical { getVertical :: Layout}
 
 instance Monoid Vertical where
   mempty = Vertical $ Grid [[Nothing]]
   mappend (Vertical a) (Vertical b)= Vertical $ above a b
 
-newtype Horizontal = Horizontal { horizontal :: Layout}
+newtype Horizontal = Horizontal { getHorizontal :: Layout}
 
 instance Monoid Horizontal where
   mempty = Horizontal $ Grid [[Nothing]]
