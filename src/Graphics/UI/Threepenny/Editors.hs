@@ -34,4 +34,5 @@ module Graphics.UI.Threepenny.Editors
   )where
 
 import qualified Graphics.UI.Threepenny.Editors.Base as Base
+import Graphics.UI.Threepenny.Editors.Layout
 import Graphics.UI.Threepenny.Editors.Profunctor

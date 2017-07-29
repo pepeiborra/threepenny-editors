@@ -40,12 +40,7 @@ module Graphics.UI.Threepenny.Editors.Profunctor
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
-    -- ** Layouts
-  , Base.Layout(Grid, Single)
-  , Base.horizontal
-  , Base.vertical
-  , Base.runLayout
-  )where
+  ) where
 
 import           Data.Bifunctor
 import           Data.Char
@@ -58,11 +53,12 @@ import           Data.Proxy
 import           Generics.SOP hiding (Compose)
 import           Graphics.UI.Threepenny.Core
 import qualified Graphics.UI.Threepenny.Editors.Base as Base
+import           Graphics.UI.Threepenny.Editors.Layout
 import           Text.Casing
 
 -- | A function from 'Behavior' @a@ to 'Editor' @a@
 newtype EditorFactory a b = EditorFactory
-  { run :: Behavior a -> Compose UI (Base.Editor Base.Layout) b
+  { run :: Behavior a -> Compose UI (Base.Editor Layout) b
   }
 
 -- | Create an editor to display the argument.
@@ -138,7 +134,7 @@ editorSelection opts displ = EditorFactory $ Base.editorSelection opts displ
 -- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Show tag, Ord tag)
-  => (Base.Layout -> Base.Layout -> Base.Layout) -> [(tag, EditorFactory b b)] -> (b -> tag) -> EditorFactory b b
+  => (Layout -> Layout -> Layout) -> [(tag, EditorFactory b b)] -> (b -> tag) -> EditorFactory b b
 editorSum layout nested tagger = EditorFactory $ \b ->
   let nested' = [ (tag, run f b) | (tag, f) <- nested ]
   in Base.editorSum layout nested' tagger b
@@ -197,7 +193,7 @@ editorGeneric'
      (All (All Editable `And` All Default) xx)
   => DatatypeInfo xx -> EditorFactory (SOP I xx) (SOP I xx)
 editorGeneric' (ADT _ _ (c :* Nil)) = constructorEditorFor c
-editorGeneric' (ADT _ _ cc) = editorSum Base.vertical editors constructor where
+editorGeneric' (ADT _ _ cc) = editorSum vertical editors constructor where
   editors :: [(Tag, EditorFactory (SOP I xx) (SOP I xx))]
   editors = map (first Tag) $ constructorEditorsFor cc
   constructors = hmap (K . constructorName) cc
