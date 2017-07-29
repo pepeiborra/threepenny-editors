@@ -42,7 +42,7 @@ getOther :: Education -> Maybe String
 getOther (Other s) = Just s
 getOther _         = Nothing
 
-editorEducation :: EditorFactory Education Education
+editorEducation :: EditorFactory Layout Education Education
 editorEducation = do
     let selector x = case x of
             Other _ -> "Other"
@@ -79,7 +79,7 @@ instance SOP.HasDatatypeInfo Person
 instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
-editorPersonRows :: EditorFactory Person Person
+editorPersonRows :: EditorFactory Layout Person Person
 editorPersonRows = vertically $ do
   (firstName, lastName) <- coerce $ horizontally $ do
       firstName <- coerce $ field "First:"     firstName editor
@@ -95,7 +95,7 @@ editorPersonRows = vertically $ do
       return (status, brexiteer)
   return Person{..}
 
-editorPersonColumns :: EditorFactory Person Person
+editorPersonColumns :: EditorFactory Layout Person Person
 editorPersonColumns = horizontally $ do
   (firstName, lastName, age) <- coerce $ vertically $ do
       firstName <- coerce $ field "First:"     firstName editor

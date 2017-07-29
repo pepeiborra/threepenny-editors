@@ -31,9 +31,9 @@ library:
   source-dirs: 	src
   exposed-modules:
     - Graphics.UI.Threepenny.Editors
-    - Graphics.UI.Threepenny.Editors.Base
     - Graphics.UI.Threepenny.Editors.Layout
-    - Graphics.UI.Threepenny.Editors.Profunctor
+    - Graphics.UI.Threepenny.Editors.Utils
+    - Graphics.UI.Threepenny.Editors.Types
   dependencies:
     - base >= 4.7 && < 5
     - containers
