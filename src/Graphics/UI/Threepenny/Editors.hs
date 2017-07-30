@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE FlexibleContexts           #-}
@@ -23,8 +24,12 @@ module Graphics.UI.Threepenny.Editors
   , editorElement
     -- * Editor factories
   , EditorFactory(Horizontally, horizontally, Vertically, vertically)
+  , someEditor
   , createEditor
   , Editable(..)
+  , EditorWidgetFor(..)
+  , Field
+  , Usage(..)
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
@@ -34,6 +39,7 @@ module Graphics.UI.Threepenny.Editors
   , pattern Vertically
     -- ** Editor layout
   , withLayout
+  , withSomeWidget
   , construct
     -- ** Editor constructors
   , editorUnit
@@ -50,25 +56,27 @@ module Graphics.UI.Threepenny.Editors
   , Layout
   , above
   , beside
+  -- ** Monoidal layouts
   , Vertical(..)
   , Horizontal(..)
   , Columns(..)
+  -- ** Type level layouts
+  , type (|*|)(..)
+  , type (-*-)(..)
+  -- ** Layout manipulation
+  , Renderable(..)
   ) where
 
-import           Data.Bifunctor
+import           Data.Biapplicative
 import           Data.Char
 import           Data.Default
 import           Data.Functor.Compose
 import           Data.Functor.Identity
 import           Data.Maybe
 import           Generics.SOP                          hiding (Compose)
-import           Graphics.UI.Threepenny.Attributes
 import           Graphics.UI.Threepenny.Core           as UI
-import           Graphics.UI.Threepenny.Elements
-import           Graphics.UI.Threepenny.Events
 import           Graphics.UI.Threepenny.Widgets
 import           Text.Casing
-import           Text.Read
 
 import           Graphics.UI.Threepenny.Editors.Layout
 import           Graphics.UI.Threepenny.Editors.Types
@@ -77,49 +85,73 @@ import           Graphics.UI.Threepenny.Editors.Types
 --   .
 --   Define your own instance by using the 'Applicative' composition operators or
 --   derive it via 'Generics.SOP'.
-class Editable a where
+class Renderable (EditorWidget a) => Editable a where
+  type family EditorWidget a
+  type EditorWidget a = Layout
   -- | The editor factory
-  editor :: EditorFactory a Layout a
+  editor :: EditorFactory a (EditorWidget a) a
   default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a))) => EditorFactory a Layout a
   editor = editorGeneric
 
-editorReadShow :: (Read a, Show a) => EditorFactory (Maybe a) Layout (Maybe a)
-editorReadShow = EF $ \b -> do
-    e <- runEF editor (maybe "" show <$> b)
-    let readIt "" = Nothing
-        readIt x  = readMaybe x
-    let t = tidings b (readIt <$> edited e)
-    return $ Editor t (_editorElement e)
+-- | Conceal the widget type of some 'Editor'
+withSomeWidget :: Renderable w => EditorFactory a w b -> EditorFactory a Layout b
+withSomeWidget = first getLayout
+
+-- | A version of 'editor' with a concealed widget type.
+someEditor :: Editable a => EditorFactory a Layout a
+someEditor = withSomeWidget editor
+
+-- | A container for 'EditorWidget'.
+data EditorWidgetFor a where
+  EditorWidgetFor :: Editable a => EditorWidget a -> EditorWidgetFor a
+
+-- | 'Usage' is a kind for type level 'Field's
+data Usage = Value | Edit
+
+-- | Type level fields. Use this helper to define EditorWidget types. Example:
+--
+-- > data PersonF (usage :: Usage) = Person
+-- >   { education           :: Field usage Education
+-- >   , firstName, lastName :: Field usage String
+-- >   , age                 :: Field usage (Maybe Int)
+--
+-- > type Person = PersonF Value
+-- > type PersonEditor = PersonF Edit
+type family Field (usage :: Usage) a where
+  Field 'Value  a = a
+  Field 'Edit a = EditorWidget a
 
 instance Editable () where
-  editor = EF $ \b -> do
-    t <- new
-    return $ Editor (tidings b never) (Single t)
+  type EditorWidget () = Element
+  editor = editorUnit
 
 instance a ~ Char => Editable [a] where
-  editor = EF $ \b -> do
-    w <- askWindow
-    t <- entry b
-    liftIOLater $ do
-      initialValue <- currentValue b
-      _ <- runUI w $ set value initialValue (element t)
-      return ()
-    return $ Editor (userText t) (Single $ getElement t)
+  type EditorWidget [a] = TextEntry
+  editor = editorString
 
 instance Editable Bool where
-  editor = EF $ \b -> do
-    t <- sink checked b $ input # set type_ "checkbox"
-    return $ Editor (tidings b $ checkedChange t) (Single t)
+  type EditorWidget Bool = Element
+  editor = editorCheckBox
 
-instance Editable (Maybe Int) where editor = editorReadShow
-instance Editable (Maybe Double) where editor = editorReadShow
-instance Editable Int where editor = editorJust editor
-instance Editable Double where editor = editorJust editor
+instance Editable (Maybe Int) where
+  type EditorWidget (Maybe Int) = TextEntry
+  editor = editorReadShow
+instance Editable (Maybe Double) where
+  type EditorWidget (Maybe Double) = TextEntry
+  editor = editorReadShow
+instance Editable Int where
+  type EditorWidget Int = TextEntry
+  editor = editorJust editor
+instance Editable Double where
+  type EditorWidget Double = TextEntry
+  editor = editorJust editor
 
 instance (Editable a, Editable b) => Editable (a,b) where
-  editor = (,) <$> lmapEF fst editor |*| lmapEF snd editor
+  type EditorWidget (a,b) = EditorWidget a |*| EditorWidget b
+  editor = bipure (:|*|) (,) <<*>> lmapEF fst editor <<*>> lmapEF snd editor
 
 instance Editable a => Editable (Identity a) where
+  type EditorWidget (Identity a) = EditorWidget a
   editor = editorIdentity editor
 
 {--------------------------------------------
@@ -144,8 +176,8 @@ constructorEditorFor
   => ConstructorInfo xs
   -> EditorFactory (SOP I '[xs]) Layout (SOP I '[xs])
 constructorEditorFor (Record _ fields) = dimapEF (unZ . unSOP) (SOP . Z) $ constructorEditorFor' fields
-constructorEditorFor (Constructor _) = dimapEF (unZ . unSOP) (SOP . Z) editor
-constructorEditorFor Infix{} = dimapEF (unZ . unSOP) (SOP . Z) editor
+constructorEditorFor (Constructor _) = dimapEF (unZ . unSOP) (SOP . Z) someEditor
+constructorEditorFor Infix{} = dimapEF (unZ . unSOP) (SOP . Z) someEditor
 
 -- | A generic editor for SOP types.
 editorGeneric
@@ -206,19 +238,20 @@ constructorEditorFor' fields = vertically $ hsequence $ hliftA Vertically $ fiel
 
 -- | Tuple editor without fields
 instance All Editable xs => Editable (NP I xs) where
+  type EditorWidget (NP I xs) = Layout
   editor = horizontally $ hsequence $ hliftA Horizontally tupleEditor
 
 tupleEditor :: forall xs . All Editable xs => NP (EditorFactory (NP I xs) Layout) xs
 tupleEditor = go id sList where
   go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (EditorFactory (NP I xs) Layout) ys
   go _ SNil  = Nil
-  go f SCons = lmapEF (unI . hd . f) editor :* go (tl . f) sList
+  go f SCons = lmapEF (unI . hd . f) someEditor :* go (tl . f) sList
 
 fieldsEditor :: forall xs . All Editable xs => NP (K String) xs -> NP (EditorFactory (NP I xs) Layout) xs
 fieldsEditor = go id sList where
   go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (K String) ys -> NP (EditorFactory (NP I xs) Layout) ys
   go _ SNil Nil = Nil
-  go f SCons (K fn :* xs) = field (toFieldLabel fn) (unI . hd . f) editor :* go (tl . f) sList xs
+  go f SCons (K fn :* xs) = field (toFieldLabel fn) (unI . hd . f) someEditor :* go (tl . f) sList xs
 
 toFieldLabel :: String -> String
 toFieldLabel (fromAny -> Identifier (x:xx)) =

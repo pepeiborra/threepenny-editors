@@ -54,6 +54,7 @@ executables:
       then:
         dependencies:
           - base
+          - bifunctors
           - data-default
           - generics-sop
           - profunctors

@@ -1,43 +1,78 @@
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE ViewPatterns    #-}
+{-# LANGUAGE TypeOperators        #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE NamedFieldPuns       #-}
+{-# LANGUAGE OverloadedLists      #-}
+{-# LANGUAGE PatternSynonyms      #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ViewPatterns         #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 
 module Graphics.UI.Threepenny.Editors.Layout
   (
+  -- * Renderableable widgets
+    Renderable(..)
   -- * Layout engine
-    Layout(Grid, Single)
+  , Layout(Grid, Single)
   , beside
   , above
-  , runLayout
   -- * Layout monoids
-  , LayoutMonoid(..)
   -- ** Flat
   , Vertical(..)
+  , vertical
   , Horizontal(..)
+  , horizontal
   -- ** Columns
   , Columns (Break, Next)
+  -- * Type level layouts
+  , type (|*|)(..)
+  , type (-*-)(..)
   ) where
 
-import           Data.Foldable                     (length)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
+import           Data.Biapplicative
+import           Data.Bifoldable
+import           Data.Foldable                   (length)
+import           Data.Map.Strict                 (Map)
+import qualified Data.Map.Strict                 as Map
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Sequence                     (Seq)
-import qualified Data.Sequence                     as Seq
-import           GHC.Exts                          (IsList (..))
-import           Graphics.UI.Threepenny.Core       as UI
+import           Data.Sequence                   (Seq)
+import qualified Data.Sequence                   as Seq
+import           GHC.Exts                        (IsList (..))
+import           Graphics.UI.Threepenny.Core     as UI
 import           Graphics.UI.Threepenny.Elements
+import           Graphics.UI.Threepenny.Widgets
+
+-- | Closely related to 'Widget', this class represents types that can be rendered to an 'Element'
+class Renderable w where
+  render    :: w -> UI Element
+  getLayout :: w -> Layout
+  render = runLayout . getLayout
+  getLayout = Cell . Just . render
+
+instance Renderable Element where
+  render = return
+
+instance Renderable a => Renderable (UI a) where
+  render = (>>= render)
+
+instance Renderable TextEntry where
+  render = return . getElement
+
+instance Renderable (ListBox a) where
+  render = return . getElement
+
+instance Renderable String where
+  render = string
 
 data Layout
   = Grid (Seq (Seq Layout)) -- ^ A non empty list of rows, where all the rows are assumed to have the same length
-  | Cell (Maybe Element)
+  | Cell (Maybe (UI Element))
 
 pattern Empty :: Layout
 pattern Empty = Cell Nothing
 
-pattern Single :: Element -> Layout
+pattern Single :: UI Element -> Layout
 pattern Single x = Cell (Just x)
 
 above, beside :: Layout -> Layout -> Layout
@@ -68,64 +103,70 @@ beside (Cell Nothing) x = x
 beside cell@(Cell Just{}) x = beside (Grid [[cell]]) x
 beside x cell@(Cell Just{}) = beside x (Grid [[cell]])
 
+instance Renderable Layout where
+  getLayout = id
+
 runLayout :: Layout -> UI Element
 runLayout (Grid rows) = grid (toList $ fmap (fmap runLayout . toList) rows)
-runLayout (Cell el)   = maybe new return el
-
-class Monoid m => LayoutMonoid m where
-  runLayoutMonoid :: m -> Layout
+runLayout (Cell el)   = fromMaybe new el
 
 -- | A layout monoid that places everything in a single column
 newtype Vertical = Vertical { getVertical :: Layout}
+
+vertical :: Renderable w => w -> Vertical
+vertical = Vertical . getLayout
 
 instance Monoid Vertical where
   mempty = Vertical Empty
   mappend (Vertical a) (Vertical b)= Vertical $ above a b
 
-instance LayoutMonoid Vertical where
-  runLayoutMonoid = getVertical
+instance Renderable Vertical where
+  getLayout = getVertical
 
 -- | A layout monoid that places everything in a single row
 newtype Horizontal = Horizontal { getHorizontal :: Layout}
+
+horizontal :: Renderable w => w -> Horizontal
+horizontal = Horizontal . getLayout
 
 instance Monoid Horizontal where
   mempty = Horizontal Empty
   mappend (Horizontal a) (Horizontal b)= Horizontal $ beside a b
 
-instance LayoutMonoid Horizontal where
-  runLayoutMonoid = getHorizontal
+instance Renderable Horizontal where
+  getLayout = getHorizontal
 
 -- | A layout monoid that lays elements in columns
 data Columns
-  = Next Layout  -- ^ Continue in the same column
+  = Next  Layout -- ^ Continue in the same column
   | Break Layout -- ^ Continue in the next column
-  | Columns { _next :: (Int, Int)            -- ^ (row, column)
-            , _acc  :: Map (Int, Int) Layout
+  | Columns { next    :: (Int, Int)            -- ^ (row, column)
+            , acc     :: Map (Int, Int) Layout
             }
 
-instance LayoutMonoid Columns where
-  runLayoutMonoid = layoutColumns
+instance Renderable Columns where
+  getLayout = layoutColumns
 
 instance Show Columns where
-  show(Next _) = "Next"
-  show(Break _) = "Break"
-  show(Columns xy m) = unwords ["Columns", show xy, show (Map.keys m)]
+  show(Next _)   = "Next"
+  show(Break _)  = "Break"
+  show Columns{..} = unwords ["Columns", show next, show (Map.keys acc)]
 
 layoutColumns :: Columns -> Layout
-layoutColumns (Next  l) = l
+layoutColumns (Next l) = l
 layoutColumns (Break l) = l
-layoutColumns (Columns _ accum)
-  | Map.null accum = Empty
+layoutColumns Columns{acc}
+  | Map.null acc = Empty
   | otherwise =
-    runLayoutMonoid $
+    getLayout $
     foldMap Vertical
-      [ runLayoutMonoid $
-        foldMap Horizontal $ catMaybes [Map.lookup (i, j) accum | j <- [0 .. c]]
+      [ getLayout $
+        foldMap Horizontal $ catMaybes [Map.lookup (i, j) acc | j <- [0 .. c]]
         | i <- [0 .. r]
       ]
   where
-    r = maximum $ fst <$> Map.keys accum
-    c = maximum $ snd <$> Map.keys accum
+    r = maximum $ fst <$> Map.keys acc
+    c = maximum $ snd <$> Map.keys acc
 
 instance Monoid Columns where
   mempty = Columns (-1,-1) mempty
@@ -139,3 +180,35 @@ instance Monoid Columns where
   mappend (Next  a) (Break b) = Columns ( 0,1) (Map.fromList [((0,0),a), ((0,1),b)])
   mappend (Break a) (Break b) = mappend (Next a) (Break b)
   mappend (Break a) (Next  b) = mappend (Next a) (Next  b)
+
+-- | Type level Horizontal layouts
+data a |*| b = a :|*| b
+
+instance Bifunctor (|*|) where
+  bimap f g (a :|*| b) = f a :|*| g b
+
+instance Bifoldable (|*|) where
+  bifoldMap f g (a :|*| b) = f a `mappend` g b
+
+instance Biapplicative (|*|) where
+  bipure a b = a :|*| b
+  fa :|*| fb <<*>> a :|*| b = fa a :|*| fb b
+
+instance (Renderable a, Renderable b) => Renderable (a |*| b) where
+  getLayout (a :|*| b) = getLayout a `beside` getLayout b
+
+-- | Type level Vertical layouts
+data a -*- b = a :-*- b
+
+instance Bifunctor (-*-) where
+  bimap f g (a :-*- b) = f a :-*- g b
+
+instance Bifoldable (-*-) where
+  bifoldMap f g (a :-*- b) = f a `mappend` g b
+
+instance Biapplicative (-*-) where
+  bipure a b = a :-*- b
+  fa :-*- fb <<*>> a :-*- b = fa a :-*- fb b
+
+instance (Renderable a, Renderable b) => Renderable (a -*- b) where
+  getLayout (a :-*- b) = getLayout a `above` getLayout b

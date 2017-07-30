@@ -1,13 +1,20 @@
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE ApplicativeDo              #-}
+{-# LANGUAGE DataKinds                  #-}
+{-# LANGUAGE DeriveGeneric              #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE RecursiveDo         #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE RecordWildCards            #-}
+{-# LANGUAGE RecursiveDo                #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# OPTIONS_GHC -Wno-name-shadowing     #-}
+{-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 import           Control.Monad
+import           Data.Biapplicative
 import           Data.Default
 import           Data.Maybe
-import qualified Generics.SOP                    as SOP
+import qualified Generics.SOP                         as SOP
 import           GHC.Generics
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Editors
@@ -16,6 +23,19 @@ import           Graphics.UI.Threepenny.Elements
 
 main :: IO ()
 main = startGUI defaultConfig setup
+
+-- | A dual purpose data type that doubles as a value and as a widget depending on the type argument.
+data PersonF (usage :: Usage) = Person
+  { education           :: Field usage Education
+  , firstName, lastName :: Field usage String
+  , age                 :: Field usage (Maybe Int)
+  , brexiteer           :: Field usage Brexiteer
+  , status              :: Field usage LegalStatus
+  }
+  deriving (Generic)
+
+type Person = PersonF Value
+type PersonEditor = PersonF Edit
 
 data LegalStatus
   = Single
@@ -41,15 +61,17 @@ getOther :: Education -> Maybe String
 getOther (Other s) = Just s
 getOther _         = Nothing
 
+-- | A manually defined editor for 'Education'.
+--   It is also possible to derive this 'Editor' via Generics.SOP, as done below.
 editorEducation :: EditorFactory Education Layout Education
 editorEducation = do
     let selector x = case x of
             Other _ -> "Other"
             _       -> show x
     editorSum beside
-      [ ("Basic", const Basic <$> editorUnit)
-      , ("Intermediate", const Intermediate <$> editorUnit)
-      , ("Other", dimapEF (fromMaybe "" . getOther) Other editor)
+      [ ("Basic", const Basic <$> withSomeWidget editorUnit)
+      , ("Intermediate", const Intermediate <$> withSomeWidget editorUnit)
+      , ("Other", dimapEF (fromMaybe "" . getOther) Other someEditor)
       ]
       selector
 
@@ -64,22 +86,16 @@ instance Editable Brexiteer where editor = editorGenericSimple
 instance SOP.HasDatatypeInfo Brexiteer
 instance SOP.Generic Brexiteer
 
-data Person = Person
-  { education           :: Education
-  , firstName, lastName :: String
-  , age                 :: Maybe Int
-  , brexiteer           :: Brexiteer
-  , status              :: LegalStatus
-  }
-  deriving (Generic, Show)
+deriving instance Show Person
 
 instance Editable Person
 instance SOP.HasDatatypeInfo Person
 instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
-editorPersonHorizontal, editorPersonVertical :: EditorFactory Person Layout Person
-editorPersonHorizontal = construct $ do
+-- | An editor for 'Person' values that combines the 'Horizontal' and 'Vertical' layout builders
+editorPersonHV :: EditorFactory Person Vertical Person
+editorPersonHV = do
   (firstName, lastName) <- withLayout Vertical $ construct $ do
       firstName <- fieldLayout Horizontal "First:"     firstName editor
       lastName  <- fieldLayout Horizontal "Last:"      lastName editor
@@ -89,55 +105,70 @@ editorPersonHorizontal = construct $ do
       education <- fieldLayout Horizontal "Education:" education editorEducation
       return (age, education)
   (status, brexiteer) <- withLayout Vertical $ construct $ do
-      status    <- fieldLayout Horizontal "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      status    <- fieldLayout Horizontal "Status"     status (withSomeWidget $ editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
       brexiteer <- fieldLayout Horizontal "Brexiter"   brexiteer editor
       return (status, brexiteer)
   return Person{..}
 
-
-editorPersonVertical = construct $ do
-  (firstName, lastName, age) <- withLayout Horizontal $ construct $ do
-      firstName <- fieldLayout Vertical "First:"     firstName editor
-      lastName  <- fieldLayout Vertical "Last:"      lastName editor
-      age       <- fieldLayout Vertical "Age:"       age editor
-      return (firstName, lastName, age)
-  (education, status, brexiteer) <- withLayout Horizontal $ construct $ do
-      education <- fieldLayout Vertical "Education:" education editorEducation
-      status    <- fieldLayout Vertical "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
-      brexiteer <- fieldLayout Vertical "Brexiter"   brexiteer editor
-      return (education, status, brexiteer)
-  return Person{..}
-
+-- | An editor for 'Person' values that uses the 'Columns' layout builder
 editorPersonColumns :: EditorFactory Person Columns Person
 editorPersonColumns = do
       firstName <- fieldLayout Next "First:"     firstName editor
       lastName  <- fieldLayout Next "Last:"      lastName editor
       age       <- fieldLayout Next "Age:"       age editor
       education <- fieldLayout Break "Education:" education editorEducation
-      status    <- fieldLayout Next "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      status    <- fieldLayout Next "Status"     status (withSomeWidget $ editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
       brexiteer <- fieldLayout Next "Brexiter"   brexiteer editor
       return Person{..}
 
+
+-- | A editor for 'Person' values with a fully fledged Widget type.
+--   The UI and layout are defined in the 'Renderable' instance for the widget.
+personEditor :: EditorFactory Person PersonEditor Person
+personEditor =
+    bipure Person Person
+      <<*>> edit education editor
+      <<*>> edit firstName editor
+      <<*>> edit lastName  editor
+      <<*>> edit age       editor
+      <<*>> edit brexiteer editor
+      <<*>> edit status    editor
+
+instance Renderable PersonEditor where
+  getLayout Person{..} =
+    ( ("First: "  ||| firstName) ===
+      ("Last: "   ||| lastName)  ===
+      ("Status: " ||| status)
+    ) |||
+    (("Age:" ||| age) ===
+     ("Brexiteer: " ||| brexiteer) ===
+     ("Education: " ||| education))
+   where
+    a ||| b = getLayout a `beside` getLayout b
+    a === b = getLayout a `above`  getLayout b
+
+-- Driver
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
-  person1H <- createEditor editorPersonHorizontal person1B
-  person1V <- createEditor editorPersonVertical   person1B
-  person1C_ <- runEF editorPersonColumns person1B
-  let person1Cl = _editorElement person1C_
-  person1C <- createEditor (construct editorPersonColumns) person1B
+  person1HV <- createEditor editorPersonHV person1B
+  person1C <- createEditor editorPersonColumns person1B
   person2 <- createEditor editorGeneric person1B
-  person1B <- stepper def (head <$> unions [edited person1H, edited person1V, edited person1C, edited person2])
+  person3 <- createEditor personEditor person1B
+  person1B <- stepper def (head <$> unions
+                            [ edited person1HV
+                            , edited person1C
+                            , edited person2
+                            , edited person3
+                            ])
 
   getBody w #+ [grid
-    [ [return $ _editorElement person1H]
-    , [hr]
-    , [return $ _editorElement person1V]
-    , [hr]
-    , [new # set text (show person1Cl)]
+    [ [return $ _editorElement person1HV]
     , [hr]
     , [return $ _editorElement person1C]
     , [hr]
     , [return $ _editorElement person2]
+    , [hr]
+    , [return $ _editorElement person3]
     , [hr]
     ]]
