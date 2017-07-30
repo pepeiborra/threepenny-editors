@@ -148,7 +148,7 @@ instance Monoid el => Applicative (EditorFactory a el) where
 -- >       age       <- Vertically $ field "Age:"   age editor
 -- >       return Person{..}
 pattern Vertically :: EditorFactory a Layout b -> EditorFactory a Vertical b
-pattern Vertically {vertically} <- (over editorFactoryElement getVertical -> vertically) where Vertically a = over editorFactoryElement Vertical a
+pattern Vertically {vertically} <- (withLayout getVertical -> vertically) where Vertically a = withLayout Vertical a
 
 -- | Applicative modifier for horizontal composition of editor factories.
 --   This can be used in conjunction with ApplicativeDo as:
@@ -159,40 +159,40 @@ pattern Vertically {vertically} <- (over editorFactoryElement getVertical -> ver
 -- >       age       <- Horizontally $ field "Age:"   age editor
 -- >       return Person{..}
 pattern Horizontally :: EditorFactory a Layout b -> EditorFactory a Horizontal b
-pattern Horizontally {horizontally} <- (over editorFactoryElement getHorizontal -> horizontally) where Horizontally a = over editorFactoryElement Horizontal a
+pattern Horizontally {horizontally} <- (withLayout getHorizontal -> horizontally) where Horizontally a = withLayout Horizontal a
 
 infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
-withLayout :: (Layout -> m) -> EditorFactory a Layout b -> EditorFactory a m b
+withLayout :: (layout -> m) -> EditorFactory a layout b -> EditorFactory a m b
 withLayout = over editorFactoryElement
 
 construct :: LayoutMonoid m => EditorFactory a m b -> EditorFactory a Layout b
-construct = over editorFactoryElement runLayoutMonoid
+construct = withLayout runLayoutMonoid
 
 -- | Left-right editor composition
 (|*|) :: EditorFactory s Layout (b -> a) -> EditorFactory s Layout b -> EditorFactory s Layout a
-a |*| b = over editorFactoryElement getHorizontal $ over editorFactoryElement Horizontal a <*> over editorFactoryElement Horizontal b
+a |*| b = withLayout getHorizontal $ withLayout Horizontal a <*> withLayout Horizontal b
 
 -- | Left-right composition of an editorElement with a editor
 (*|) :: UI Element -> EditorFactory s Layout a -> EditorFactory s Layout a
-e *| a = over editorFactoryElement getHorizontal $ liftElement(Horizontal . Single <$> e) *> over editorFactoryElement Horizontal a
+e *| a = withLayout getHorizontal $ liftElement(Horizontal . Single <$> e) *> withLayout Horizontal a
 
 -- | Left-right composition of an editorElement with a editor
 (|*) :: EditorFactory s Layout a -> UI Element -> EditorFactory s Layout a
-a |* e = over editorFactoryElement getHorizontal $ over editorFactoryElement Horizontal a <* liftElement(Horizontal . Single <$> e)
+a |* e = withLayout getHorizontal $ withLayout Horizontal a <* liftElement(Horizontal . Single <$> e)
 
 -- | Left-right editor composition
 (-*-) :: EditorFactory s Layout (b -> a) -> EditorFactory s Layout b -> EditorFactory s Layout a
-a -*- b = over editorFactoryElement getVertical $ over editorFactoryElement Vertical a <*> over editorFactoryElement Vertical b
+a -*- b = withLayout getVertical $ withLayout Vertical a <*> withLayout Vertical b
 
 -- | Left-right composition of an editorElement with a editor
 (*-) :: UI Element -> EditorFactory s Layout a -> EditorFactory s Layout a
-e *- a = over editorFactoryElement getVertical $ liftElement(Vertical . Single <$> e) *> over editorFactoryElement Vertical a
+e *- a = withLayout getVertical $ liftElement(Vertical . Single <$> e) *> withLayout Vertical a
 
 -- | Left-right composition of an editorElement with a editor
 (-*) :: EditorFactory s Layout a -> UI Element -> EditorFactory s Layout a
-a -* e = over editorFactoryElement getVertical $ over editorFactoryElement Vertical a <* liftElement(Vertical . Single <$> e)
+a -* e = withLayout getVertical $ withLayout Vertical a <* liftElement(Vertical . Single <$> e)
 
 -- | A helper that arranges a label with the field name
 --   and the editor horizontally.
