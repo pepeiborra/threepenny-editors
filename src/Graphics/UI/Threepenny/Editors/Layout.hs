@@ -99,8 +99,9 @@ instance LayoutMonoid Horizontal where
 data Columns
   = Next Layout  -- ^ Continue in the same column
   | Break Layout -- ^ Continue in the next column
-  | Columns (Int, Int)              -- ^ (row, column)
-            (Map (Int, Int) Layout) -- ^ accumulator
+  | Columns { _next :: (Int, Int)            -- ^ (row, column)
+            , _acc  :: Map (Int, Int) Layout
+            }
 
 instance LayoutMonoid Columns where
   runLayoutMonoid = layoutColumns
