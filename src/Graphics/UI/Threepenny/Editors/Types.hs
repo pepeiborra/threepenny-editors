@@ -16,6 +16,7 @@ module Graphics.UI.Threepenny.Editors.Types
   , EditorFactory(.., Horizontally, horizontally, Vertically, vertically)
   , dimapEF
   , lmapEF
+  , applyEF
   , createEditor
   , layoutEditor
   , editorFactoryElement
@@ -43,6 +44,7 @@ module Graphics.UI.Threepenny.Editors.Types
 import           Control.Applicative
 import           Control.Lens                          hiding (beside, children,
                                                         ( # ))
+import           Data.Biapplicative
 import           Data.Functor.Compose
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Editors.Layout
@@ -116,22 +118,25 @@ dimapEF g h (EF f) = EF $ \b -> getCompose $ h <$> Compose (f (g <$> b))
 lmapEF :: (a' -> a) -> EditorFactory a el b -> EditorFactory a' el b
 lmapEF f = dimapEF f id
 
+applyEF :: (el1 -> el2 -> el) -> EditorFactory in_ el1 (a -> b) -> EditorFactory in_ el2 a -> EditorFactory in_ el b
+applyEF combineElements a b = EF $ \s -> do
+    a <- runEF a s
+    b <- runEF b s
+    return $ Editor (_editorTidings a <*> _editorTidings b) (_editorElement a `combineElements` _editorElement b)
+
 instance Functor (EditorFactory a el) where
   fmap = dimapEF id
 
 instance Bifunctor (EditorFactory a) where
   bimap = bimapEF
 
--- instance Profunctor (EditorFactory el) where
---  dimap = dimapEF
+instance Biapplicative (EditorFactory a) where
+  bipure w o = EF $ \_ -> return $ Editor (pure o) w
+  (<<*>>) = applyEF ($)
 
 instance Monoid el => Applicative (EditorFactory a el) where
-  pure x = EF $ \_ -> return $ Editor (pure x) mempty
-  a <*> b = EF $ \s -> do
-    a <- runEF a s
-    b <- runEF b s
-    let ab = mappend (_editorElement a) (_editorElement b)
-    return $ Editor (_editorTidings a <*> _editorTidings b) ab
+  pure = bipure mempty
+  (<*>) = applyEF mappend
 
 -- | Applicative modifier for vertical composition of editor factories.
 --

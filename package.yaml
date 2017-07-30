@@ -36,6 +36,7 @@ library:
     - Graphics.UI.Threepenny.Editors.Types
   dependencies:
     - base >= 4.7 && < 5
+    - bifunctors
     - containers
     - data-default
     - generics-sop
