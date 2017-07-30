@@ -21,6 +21,7 @@ module Graphics.UI.Threepenny.Editors
   , edited
   , contents
   , editorElement
+    -- * Editor factories
   , EditorFactory(Horizontally, horizontally, Vertically, vertically)
   , createEditor
   , Editable(..)
@@ -28,8 +29,12 @@ module Graphics.UI.Threepenny.Editors
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
+  , fieldLayout
   , pattern Horizontally
   , pattern Vertically
+    -- ** Editor layout
+  , withLayout
+  , construct
     -- ** Editor constructors
   , editorUnit
   , editorIdentity
@@ -41,13 +46,13 @@ module Graphics.UI.Threepenny.Editors
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
-    -- ** Layouts
-  , Layout(Grid, Single)
+    -- * Layouts
+  , Layout
   , above
   , beside
-  , runLayout
   , Vertical(..)
   , Horizontal(..)
+  , Columns(..)
   ) where
 
 import           Data.Bifunctor

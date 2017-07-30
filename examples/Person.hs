@@ -5,14 +5,14 @@
 {-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 import           Control.Monad
-import           Data.Coerce
 import           Data.Default
 import           Data.Maybe
 import           Data.Profunctor
 import qualified Generics.SOP                    as SOP
 import           GHC.Generics
 import           Graphics.UI.Threepenny.Core
-import           Graphics.UI.Threepenny.Editors hiding (Single)
+import           Graphics.UI.Threepenny.Editors
+import           Graphics.UI.Threepenny.Editors.Types
 import           Graphics.UI.Threepenny.Elements
 
 main :: IO ()
@@ -79,48 +79,64 @@ instance SOP.HasDatatypeInfo Person
 instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
-editorPersonRows :: EditorFactory Layout Person Person
-editorPersonRows = vertically $ do
-  (firstName, lastName) <- Vertically $ horizontally $ do
-      firstName <- Horizontally $ field "First:"     firstName editor
-      lastName  <- Horizontally $ field "Last:"      lastName editor
+editorPersonHorizontal, editorPersonVertical :: EditorFactory Layout Person Person
+editorPersonHorizontal = construct $ do
+  (firstName, lastName) <- withLayout Vertical $ construct $ do
+      firstName <- fieldLayout Horizontal "First:"     firstName editor
+      lastName  <- fieldLayout Horizontal "Last:"      lastName editor
       return (firstName, lastName)
-  (age, education) <- Vertically $ horizontally $ do
-      age       <- Horizontally $ field "Age:"       age editor
-      education <- Horizontally $ field "Education:" education editorEducation
+  (age, education) <- withLayout Vertical $ construct $ do
+      age       <- fieldLayout Horizontal "Age:"       age editor
+      education <- fieldLayout Horizontal "Education:" education editorEducation
       return (age, education)
-  (status, brexiteer) <- Vertically $ horizontally $ do
-      status    <- Horizontally $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
-      brexiteer <- Horizontally $ field "Brexiter"   brexiteer editor
+  (status, brexiteer) <- withLayout Vertical $ construct $ do
+      status    <- fieldLayout Horizontal "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- fieldLayout Horizontal "Brexiter"   brexiteer editor
       return (status, brexiteer)
   return Person{..}
 
-editorPersonColumns :: EditorFactory Layout Person Person
-editorPersonColumns = horizontally $ do
-  (firstName, lastName, age) <- Horizontally $ vertically $ do
-      firstName <- Vertically $ field "First:"     firstName editor
-      lastName  <- Vertically $ field "Last:"      lastName editor
-      age       <- Vertically $ field "Age:"       age editor
+
+editorPersonVertical = construct $ do
+  (firstName, lastName, age) <- withLayout Horizontal $ construct $ do
+      firstName <- fieldLayout Vertical "First:"     firstName editor
+      lastName  <- fieldLayout Vertical "Last:"      lastName editor
+      age       <- fieldLayout Vertical "Age:"       age editor
       return (firstName, lastName, age)
-  (education, status, brexiteer) <- Horizontally $ vertically $ do
-      education <- Vertically $ field "Education:" education editorEducation
-      status    <- Vertically $ field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
-      brexiteer <- Vertically $ field "Brexiter"   brexiteer editor
+  (education, status, brexiteer) <- withLayout Horizontal $ construct $ do
+      education <- fieldLayout Vertical "Education:" education editorEducation
+      status    <- fieldLayout Vertical "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- fieldLayout Vertical "Brexiter"   brexiteer editor
       return (education, status, brexiteer)
   return Person{..}
+
+editorPersonColumns = do
+      firstName <- fieldLayout Next "First:"     firstName editor
+      lastName  <- fieldLayout Next "Last:"      lastName editor
+      age       <- fieldLayout Next "Age:"       age editor
+      education <- fieldLayout Break "Education:" education editorEducation
+      status    <- fieldLayout Next "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- fieldLayout Next "Brexiter"   brexiteer editor
+      return Person{..}
 
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
-  person1r <- createEditor editorPersonRows person1B
-  person1c <- createEditor editorPersonColumns person1B
+  person1H <- createEditor editorPersonHorizontal person1B
+  person1V <- createEditor editorPersonVertical   person1B
+  person1C_ <- runEF editorPersonColumns person1B
+  let person1Cl = _editorElement person1C_
+  person1C <- createEditor (construct editorPersonColumns) person1B
   person2 <- createEditor editorGeneric person1B
-  person1B <- stepper def (head <$> unions [edited person1r, edited person1c, edited person2])
+  person1B <- stepper def (head <$> unions [edited person1H, edited person1V, edited person1C, edited person2])
 
   getBody w #+ [grid
-    [ [return $ _editorElement person1r]
+    [ [return $ _editorElement person1H]
     , [hr]
-    , [return $ _editorElement person1c]
+    , [return $ _editorElement person1V]
+    , [hr]
+    , [new # set text (show person1Cl)]
+    , [hr]
+    , [return $ _editorElement person1C]
     , [hr]
     , [return $ _editorElement person2]
     , [hr]

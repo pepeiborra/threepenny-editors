@@ -15,11 +15,13 @@ module Graphics.UI.Threepenny.Editors.Types
   , editorElement
   , EditorFactory(.., Horizontally, horizontally, Vertically, vertically)
   , createEditor
+  , layoutEditor
   , editorFactoryElement
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
+  , fieldLayout
   , pattern Horizontally
   , pattern Vertically
     -- ** Editor constructors
@@ -29,6 +31,9 @@ module Graphics.UI.Threepenny.Editors.Types
   , editorSelection
   , editorSum
   , editorJust
+    -- ** Editor layout
+  , withLayout
+  , construct
   ) where
 
 import           Control.Applicative
@@ -61,15 +66,15 @@ contents = facts . _editorTidings
 instance Widget el => Widget (Editor el a) where
   getElement = getElement . _editorElement
 
-runEditor :: Editor Layout a -> UI (Editor Element a)
-runEditor = mapMOf editorElement runLayout
+layoutEditor :: Editor Layout a -> UI (Editor Element a)
+layoutEditor = mapMOf editorElement runLayout
   where
     mapMOf l cmd = unwrapMonad . l (WrapMonad . cmd)
 
 -- | Create an editor to display the argument.
 --   User edits are fed back via the 'edited' 'Event'.
 createEditor :: EditorFactory Layout b a -> Behavior b -> UI (Editor Element a)
-createEditor e b = runEF e b >>= runEditor
+createEditor e b = runEF e b >>= layoutEditor
 
 -- | A function from 'Behavior' @a@ to 'Editor' @b@
 newtype EditorFactory el a b = EF {runEF :: Behavior a -> UI (Editor el b)}
@@ -124,6 +129,12 @@ editorFactoryElement = _EditorFactory.mapped.mapped.editorElement
 liftElement :: UI el -> EditorFactory el a ()
 liftElement el = EF $ \_ -> Editor (pure ()) <$> el
 
+withLayout :: (Layout -> m) -> EditorFactory Layout a b -> EditorFactory m a b
+withLayout = over editorFactoryElement
+
+construct :: LayoutMonoid m => EditorFactory m a b -> EditorFactory Layout a b
+construct = over editorFactoryElement runLayoutMonoid
+
 -- | Left-right editor composition
 (|*|) :: EditorFactory Layout s (b -> a) -> EditorFactory Layout s b -> EditorFactory Layout s a
 a |*| b = over editorFactoryElement getHorizontal $ over editorFactoryElement Horizontal a <*> over editorFactoryElement Horizontal b
@@ -150,6 +161,9 @@ a -* e = over editorFactoryElement getVertical $ over editorFactoryElement Verti
 
 -- | A helper that arranges a label with the field name
 --   and the editor horizontally.
+fieldLayout :: LayoutMonoid m => (Layout -> m ) -> String -> (out -> inn) -> EditorFactory Layout inn a -> EditorFactory m out a
+fieldLayout l name f e = withLayout l (string name *| lmap f e)
+
 field :: String -> (out -> inn) -> EditorFactory Layout inn a -> EditorFactory Layout out a
 field name f e = string name *| lmap f e
 
@@ -184,7 +198,7 @@ editorSum
   :: (Ord tag, Show tag)
   => (Layout -> Layout -> Layout) -> [(tag, EditorFactory Layout a a)] -> (a -> tag) -> EditorFactory Layout a a
 editorSum combineLayout options selector = EF $ \ba -> do
-  options <- mapM (\(tag, EF mk) -> (tag,) <$> (mk ba >>= runEditor)) options
+  options <- mapM (\(tag, EF mk) -> (tag,) <$> (mk ba >>= layoutEditor)) options
   let tag = selector <$> ba
   tag' <- calmB tag
   let build a = lookup a options
