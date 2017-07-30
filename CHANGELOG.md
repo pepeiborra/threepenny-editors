@@ -1,3 +1,15 @@
+# 0.5.0 (2017-07-30)
+    This is a major release with lots of internal rewrites and new features:
+    * Introduced monoidal layout builders like `Columns` for easier layout of
+      `field` style editors. Generic editors do not yet take advantage of this,
+      but in the future they will via metadata.
+    * Introduced a `Biapplicative` interface for defining editors with richly
+      typed widgets. This is quite experimental and only record types are
+      supported, examples/Person.hs contains an example.
+    * Reorganized module and data type structure. The main changes are:
+      - `EditorDef` no longer exists.
+      - `Editor` has been generalized and now exposes the widget type.
+      - `EditorFactory` is now a `Biapplicative` but no longer has a `Profunctor` instance.
 # 0.4.1 (2017-07-13)
     * Improved the rendering of constructors in generic sum editors
 # 0.4.0 (2017-07-13)
