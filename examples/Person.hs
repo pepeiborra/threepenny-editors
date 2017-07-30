@@ -7,7 +7,6 @@
 import           Control.Monad
 import           Data.Default
 import           Data.Maybe
-import           Data.Profunctor
 import qualified Generics.SOP                    as SOP
 import           GHC.Generics
 import           Graphics.UI.Threepenny.Core
@@ -42,7 +41,7 @@ getOther :: Education -> Maybe String
 getOther (Other s) = Just s
 getOther _         = Nothing
 
-editorEducation :: EditorFactory Layout Education Education
+editorEducation :: EditorFactory Education Layout Education
 editorEducation = do
     let selector x = case x of
             Other _ -> "Other"
@@ -50,7 +49,7 @@ editorEducation = do
     editorSum beside
       [ ("Basic", const Basic <$> editorUnit)
       , ("Intermediate", const Intermediate <$> editorUnit)
-      , ("Other", dimap (fromMaybe "" . getOther) Other editor)
+      , ("Other", dimapEF (fromMaybe "" . getOther) Other editor)
       ]
       selector
 
@@ -79,7 +78,7 @@ instance SOP.HasDatatypeInfo Person
 instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
-editorPersonHorizontal, editorPersonVertical :: EditorFactory Layout Person Person
+editorPersonHorizontal, editorPersonVertical :: EditorFactory Person Layout Person
 editorPersonHorizontal = construct $ do
   (firstName, lastName) <- withLayout Vertical $ construct $ do
       firstName <- fieldLayout Horizontal "First:"     firstName editor
@@ -109,6 +108,7 @@ editorPersonVertical = construct $ do
       return (education, status, brexiteer)
   return Person{..}
 
+editorPersonColumns :: EditorFactory Person Columns Person
 editorPersonColumns = do
       firstName <- fieldLayout Next "First:"     firstName editor
       lastName  <- fieldLayout Next "Last:"      lastName editor
