@@ -90,7 +90,7 @@ class Renderable (EditorWidget a) => Editable a where
   type EditorWidget a = Layout
   -- | The editor factory
   editor :: EditorFactory a (EditorWidget a) a
-  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a))) => EditorFactory a Layout a
+  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)), EditorWidget a ~ Layout) => EditorFactory a (EditorWidget a) a
   editor = editorGeneric
 
 -- | Conceal the widget type of some 'Editor'

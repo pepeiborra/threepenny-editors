@@ -1,3 +1,5 @@
+# 0.5.1 (2017-07-30)
+    * Fix a build issue with GHC 8.2.1
 # 0.5.0 (2017-07-30)
     This is a major release with lots of internal rewrites and new features:
     * Introduced monoidal layout builders like `Columns` for easier layout of
