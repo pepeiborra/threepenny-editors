@@ -53,6 +53,9 @@ data Editor editorElement a = Editor
   }
   deriving Functor
 
+instance Bifunctor Editor where
+  bimap f g (Editor t e) = Editor (g <$> t) (f e)
+
 -- | A lens over the 'editorElement' field
 editorElement :: Lens (Editor el a) (Editor el' a) el el'
 editorElement f (Editor t el) = Editor t <$> f el
