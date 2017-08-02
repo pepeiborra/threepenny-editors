@@ -63,7 +63,7 @@ getOther _         = Nothing
 
 -- | A manually defined editor for 'Education'.
 --   It is also possible to derive this 'Editor' via Generics.SOP, as done below.
-editorEducation :: EditorFactory Education Layout Education
+editorEducation :: Editor Education Layout Education
 editorEducation = do
     let selector x = case x of
             Other _ -> "Other"
@@ -71,7 +71,7 @@ editorEducation = do
     editorSum beside
       [ ("Basic", const Basic <$> withSomeWidget editorUnit)
       , ("Intermediate", const Intermediate <$> withSomeWidget editorUnit)
-      , ("Other", dimapEF (fromMaybe "" . getOther) Other someEditor)
+      , ("Other", dimapE (fromMaybe "" . getOther) Other someEditor)
       ]
       selector
 
@@ -94,7 +94,7 @@ instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
 -- | An editor for 'Person' values that combines the 'Horizontal' and 'Vertical' layout builders
-editorPersonHV :: EditorFactory Person Vertical Person
+editorPersonHV :: Editor Person Vertical Person
 editorPersonHV = do
   (firstName, lastName) <- withLayout Vertical $ construct $ do
       firstName <- fieldLayout Horizontal "First:"     firstName editor
@@ -111,7 +111,7 @@ editorPersonHV = do
   return Person{..}
 
 -- | An editor for 'Person' values that uses the 'Columns' layout builder
-editorPersonColumns :: EditorFactory Person Columns Person
+editorPersonColumns :: Editor Person Columns Person
 editorPersonColumns = do
       firstName <- fieldLayout Next "First:"     firstName editor
       lastName  <- fieldLayout Next "Last:"      lastName editor
@@ -124,7 +124,7 @@ editorPersonColumns = do
 
 -- | A editor for 'Person' values with a fully fledged Widget type.
 --   The UI and layout are defined in the 'Renderable' instance for the widget.
-personEditor :: EditorFactory Person PersonEditor Person
+personEditor :: Editor Person PersonEditor Person
 personEditor =
     bipure Person Person
       <<*>> edit education editor
@@ -151,10 +151,10 @@ instance Renderable PersonEditor where
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
-  person1HV <- createEditor editorPersonHV person1B
-  person1C <- createEditor editorPersonColumns person1B
-  person2 <- createEditor editorGeneric person1B
-  person3 <- createEditor personEditor person1B
+  person1HV <- createAndRender editorPersonHV person1B
+  person1C <- createAndRender editorPersonColumns person1B
+  person2 <- createAndRender editorGeneric person1B
+  person3 <- createAndRender personEditor person1B
   person1B <- stepper def (head <$> unions
                             [ edited person1HV
                             , edited person1C
@@ -163,12 +163,12 @@ setup w = void $ mdo
                             ])
 
   getBody w #+ [grid
-    [ [return $ _editorElement person1HV]
+    [ [return $ _widgetControl person1HV]
     , [hr]
-    , [return $ _editorElement person1C]
+    , [return $ _widgetControl person1C]
     , [hr]
-    , [return $ _editorElement person2]
+    , [return $ _widgetControl person2]
     , [hr]
-    , [return $ _editorElement person3]
+    , [return $ _widgetControl person3]
     , [hr]
     ]]

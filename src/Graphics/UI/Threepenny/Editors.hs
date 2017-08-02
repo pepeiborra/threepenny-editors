@@ -17,15 +17,18 @@
 {-# OPTIONS_GHC -Wno-duplicate-exports  #-}
 
 module Graphics.UI.Threepenny.Editors
-  ( -- * Editors
-    Editor(..)
+  ( -- * Widgets
+    GenericWidget(..)
   , edited
   , contents
-  , editorElement
-    -- * Editor factories
-  , EditorFactory(Horizontally, horizontally, Vertically, vertically)
+  , widgetControl
+    -- * Editors
+  , Editor(Horizontally, horizontally, Vertically, vertically)
   , someEditor
-  , createEditor
+  , create
+  , createAndRender
+  , lmapE
+  , dimapE
   , Editable(..)
   , EditorWidgetFor(..)
   , Field
@@ -89,16 +92,16 @@ class Renderable (EditorWidget a) => Editable a where
   type family EditorWidget a
   type EditorWidget a = Layout
   -- | The editor factory
-  editor :: EditorFactory a (EditorWidget a) a
-  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)), EditorWidget a ~ Layout) => EditorFactory a (EditorWidget a) a
+  editor :: Editor a (EditorWidget a) a
+  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)), EditorWidget a ~ Layout) => Editor a (EditorWidget a) a
   editor = editorGeneric
 
 -- | Conceal the widget type of some 'Editor'
-withSomeWidget :: Renderable w => EditorFactory a w b -> EditorFactory a Layout b
+withSomeWidget :: Renderable w => Editor a w b -> Editor a Layout b
 withSomeWidget = first getLayout
 
 -- | A version of 'editor' with a concealed widget type.
-someEditor :: Editable a => EditorFactory a Layout a
+someEditor :: Editable a => Editor a Layout a
 someEditor = withSomeWidget editor
 
 -- | A container for 'EditorWidget'.
@@ -148,7 +151,7 @@ instance Editable Double where
 
 instance (Editable a, Editable b) => Editable (a,b) where
   type EditorWidget (a,b) = EditorWidget a |*| EditorWidget b
-  editor = bipure (:|*|) (,) <<*>> lmapEF fst editor <<*>> lmapEF snd editor
+  editor = bipure (:|*|) (,) <<*>> lmapE fst editor <<*>> lmapE snd editor
 
 instance Editable a => Editable (Identity a) where
   type EditorWidget (Identity a) = EditorWidget a
@@ -161,38 +164,38 @@ instance Editable a => Editable (Identity a) where
 editorGenericSimple
   :: forall a xs.
      (Generic a, HasDatatypeInfo a, All Editable xs, Code a ~ '[xs])
-  => EditorFactory a Layout a
-editorGenericSimple = dimapEF from to $ editorGenericSimple' (datatypeInfo(Proxy @ a))
+  => Editor a Layout a
+editorGenericSimple = dimapE from to $ editorGenericSimple' (datatypeInfo(Proxy @ a))
 
 editorGenericSimple'
   :: forall xs.
      (All Editable xs)
-  => DatatypeInfo '[xs] -> EditorFactory (SOP I '[xs]) Layout (SOP I '[xs])
+  => DatatypeInfo '[xs] -> Editor (SOP I '[xs]) Layout (SOP I '[xs])
 editorGenericSimple' (ADT _ _ (c :* Nil)) = constructorEditorFor c
 editorGenericSimple' (Newtype _ _ c)      = constructorEditorFor c
 
 constructorEditorFor
   :: (All Editable xs)
   => ConstructorInfo xs
-  -> EditorFactory (SOP I '[xs]) Layout (SOP I '[xs])
-constructorEditorFor (Record _ fields) = dimapEF (unZ . unSOP) (SOP . Z) $ constructorEditorFor' fields
-constructorEditorFor (Constructor _) = dimapEF (unZ . unSOP) (SOP . Z) someEditor
-constructorEditorFor Infix{} = dimapEF (unZ . unSOP) (SOP . Z) someEditor
+  -> Editor (SOP I '[xs]) Layout (SOP I '[xs])
+constructorEditorFor (Record _ fields) = dimapE (unZ . unSOP) (SOP . Z) $ constructorEditorFor' fields
+constructorEditorFor (Constructor _) = dimapE (unZ . unSOP) (SOP . Z) someEditor
+constructorEditorFor Infix{} = dimapE (unZ . unSOP) (SOP . Z) someEditor
 
 -- | A generic editor for SOP types.
 editorGeneric
   :: forall a .
      (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)))
-  => EditorFactory a Layout a
-editorGeneric = dimapEF from to $ editorGeneric' (datatypeInfo(Proxy @ a))
+  => Editor a Layout a
+editorGeneric = dimapE from to $ editorGeneric' (datatypeInfo(Proxy @ a))
 
 editorGeneric'
   :: forall xx.
      (All (All Editable `And` All Default) xx)
-  => DatatypeInfo xx -> EditorFactory (SOP I xx) Layout (SOP I xx)
+  => DatatypeInfo xx -> Editor (SOP I xx) Layout (SOP I xx)
 editorGeneric' (ADT _ _ (c :* Nil)) = constructorEditorFor c
 editorGeneric' (ADT _ _ cc) = editorSum above editors constructor where
-  editors :: [(Tag, EditorFactory (SOP I xx) Layout (SOP I xx))]
+  editors :: [(Tag, Editor (SOP I xx) Layout (SOP I xx))]
   editors = first Tag <$> constructorEditorsFor cc
   constructors = hmap (K . constructorName) cc
   constructor a = Tag $ hcollapse $ hliftA2 const constructors (unSOP a)
@@ -203,7 +206,7 @@ instance Show Tag where show (Tag t) = init $ toFieldLabel t
 
 constructorEditorsFor
   :: forall xx . (All (All Editable `And` All Default) xx)
-  => NP ConstructorInfo xx -> [(String, EditorFactory (SOP I xx) Layout (SOP I xx))]
+  => NP ConstructorInfo xx -> [(String, Editor (SOP I xx) Layout (SOP I xx))]
 constructorEditorsFor cc =
   hcollapse $ hcliftA3 p (\c i p -> (constructorName c,) `mapKK` constructorEditorForUnion c i p) cc
     (injections  :: NP (Injection  (NP I) xx) xx)
@@ -216,24 +219,24 @@ constructorEditorForUnion
   => ConstructorInfo xs
   -> Injection (NP I) xx xs
   -> Projection (Compose Maybe (NP I)) xx xs
-  -> K (EditorFactory (SOP I xx) Layout (SOP I xx)) xs
-constructorEditorForUnion (Constructor _) inj prj = K $ composeEditorFactory inj prj editor
-constructorEditorForUnion Infix{} inj prj = K $ composeEditorFactory inj prj editor
-constructorEditorForUnion (Record _ fields) inj prj = K $ composeEditorFactory inj prj $ constructorEditorFor' fields
+  -> K (Editor (SOP I xx) Layout (SOP I xx)) xs
+constructorEditorForUnion (Constructor _) inj prj = K $ composeEditor inj prj editor
+constructorEditorForUnion Infix{} inj prj = K $ composeEditor inj prj editor
+constructorEditorForUnion (Record _ fields) inj prj = K $ composeEditor inj prj $ constructorEditorFor' fields
 
-composeEditorFactory
+composeEditor
   :: forall xss xs.
     (SListI xss, All Default xs) =>
      Injection (NP I) xss xs
   -> Projection (Compose Maybe (NP I)) xss xs
-  -> EditorFactory (NP I xs) Layout (NP I xs)
-  -> EditorFactory (SOP I xss) Layout (SOP I xss)
-composeEditorFactory (Fn inj) (Fn prj) = dimapEF f (SOP . unK . inj)
+  -> Editor (NP I xs) Layout (NP I xs)
+  -> Editor (SOP I xss) Layout (SOP I xss)
+composeEditor (Fn inj) (Fn prj) = dimapE f (SOP . unK . inj)
   where
     f :: SOP I xss -> NP I xs
     f = fromMaybe def . getCompose . prj . K . hexpand (Compose Nothing) . hmap (Compose . Just) . unSOP
 
-constructorEditorFor' :: (SListI xs, All Editable xs) => NP FieldInfo xs -> EditorFactory (NP I xs) Layout (NP I xs)
+constructorEditorFor' :: (SListI xs, All Editable xs) => NP FieldInfo xs -> Editor (NP I xs) Layout (NP I xs)
 constructorEditorFor' fields = vertically $ hsequence $ hliftA Vertically $ fieldsEditor (hliftA (K . fieldName) fields)
 
 -- | Tuple editor without fields
@@ -241,15 +244,15 @@ instance All Editable xs => Editable (NP I xs) where
   type EditorWidget (NP I xs) = Layout
   editor = horizontally $ hsequence $ hliftA Horizontally tupleEditor
 
-tupleEditor :: forall xs . All Editable xs => NP (EditorFactory (NP I xs) Layout) xs
+tupleEditor :: forall xs . All Editable xs => NP (Editor (NP I xs) Layout) xs
 tupleEditor = go id sList where
-  go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (EditorFactory (NP I xs) Layout) ys
+  go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (Editor (NP I xs) Layout) ys
   go _ SNil  = Nil
-  go f SCons = lmapEF (unI . hd . f) someEditor :* go (tl . f) sList
+  go f SCons = lmapE (unI . hd . f) someEditor :* go (tl . f) sList
 
-fieldsEditor :: forall xs . All Editable xs => NP (K String) xs -> NP (EditorFactory (NP I xs) Layout) xs
+fieldsEditor :: forall xs . All Editable xs => NP (K String) xs -> NP (Editor (NP I xs) Layout) xs
 fieldsEditor = go id sList where
-  go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (K String) ys -> NP (EditorFactory (NP I xs) Layout) ys
+  go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (K String) ys -> NP (Editor (NP I xs) Layout) ys
   go _ SNil Nil = Nil
   go f SCons (K fn :* xs) = field (toFieldLabel fn) (unI . hd . f) someEditor :* go (tl . f) sList xs
 

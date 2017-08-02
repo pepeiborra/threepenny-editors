@@ -62,3 +62,21 @@ executables:
           - threepenny-editors
       else: 
         buildable: False
+
+  parser:
+    source-dirs:  examples
+    main: Parser.hs
+    when:
+      condition: flag(buildExamples)
+      then:
+        dependencies:
+          - base
+          - bifunctors
+          - data-default
+          - generics-sop
+          - profunctors
+          - threepenny-gui
+          - threepenny-editors
+          - haskell-src-exts
+      else: 
+        buildable: False

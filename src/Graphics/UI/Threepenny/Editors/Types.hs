@@ -8,21 +8,22 @@
 
 module Graphics.UI.Threepenny.Editors.Types
   (
-  -- * Editors
-    Editor(..)
+  -- * GenericWidgets
+    GenericWidget(..)
   , edited
   , contents
-  , editorElement
-  , EditorFactory(.., Horizontally, horizontally, Vertically, vertically)
-  , dimapEF
-  , lmapEF
-  , applyEF
-  , createEditor
+  , widgetControl
+  , liftElement
+  , Editor(.., Horizontally, horizontally, Vertically, vertically)
+  , dimapE
+  , lmapE
+  , applyE
+  , createAndRender
   , renderEditor
   , editorFactoryElement
   , editorFactoryInput
   , editorFactoryOutput
-    -- ** Editor composition
+    -- ** GenericWidget composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
@@ -30,7 +31,7 @@ module Graphics.UI.Threepenny.Editors.Types
   , edit
   , pattern Horizontally
   , pattern Vertically
-    -- ** Editor constructors
+    -- ** GenericWidget constructors
   , editorUnit
   , editorIdentity
   , editorString
@@ -40,7 +41,7 @@ module Graphics.UI.Threepenny.Editors.Types
   , editorSelection
   , editorSum
   , editorJust
-    -- ** Editor layout
+    -- ** GenericWidget layout
   , withLayout
   , construct
   ) where
@@ -60,103 +61,104 @@ import           Graphics.UI.Threepenny.Widgets
 import           Text.Read
 
 -- | A widget for editing values of type @a@.
-data Editor editorElement a = Editor
-  { _editorTidings :: Tidings a
-  , _editorElement :: editorElement
+data GenericWidget control a = GenericWidget
+  { _widgetTidings :: Tidings a
+  , _widgetControl :: control
   }
   deriving Functor
 
-instance Bifunctor Editor where
-  bimap f g (Editor t e) = Editor (g <$> t) (f e)
+instance Bifunctor GenericWidget where
+  bimap f g (GenericWidget t e) = GenericWidget (g <$> t) (f e)
 
--- | A lens over the 'editorElement' field
-editorElement :: Lens (Editor el a) (Editor el' a) el el'
-editorElement f (Editor t el) = Editor t <$> f el
+-- | A lens over the 'widgetControl' field
+widgetControl :: Lens (GenericWidget el a) (GenericWidget el' a) el el'
+widgetControl f (GenericWidget t el) = GenericWidget t <$> f el
 
-edited :: Editor el a -> Event a
-edited = rumors . _editorTidings
+edited :: GenericWidget el a -> Event a
+edited = rumors . _widgetTidings
 
-contents :: Editor el a -> Behavior a
-contents = facts . _editorTidings
+contents :: GenericWidget el a -> Behavior a
+contents = facts . _widgetTidings
 
-instance Widget el => Widget (Editor el a) where
-  getElement = getElement . _editorElement
+instance Widget el => Widget (GenericWidget el a) where
+  getElement = getElement . _widgetControl
 
-renderEditor :: Renderable w => Editor w a -> UI (Editor Element a)
-renderEditor = mapMOf editorElement render
+renderEditor :: Renderable w => GenericWidget w a -> UI (GenericWidget Element a)
+renderEditor = mapMOf widgetControl render
   where
     mapMOf l cmd = unwrapMonad . l (WrapMonad . cmd)
 
 -- | Create an editor to display the argument.
 --   User edits are fed back via the 'edited' 'Event'.
-createEditor :: Renderable w => EditorFactory a w b -> Behavior a -> UI (Editor Element b)
-createEditor e b = runEF e b >>= renderEditor
+createAndRender :: Renderable w => Editor a w b -> Behavior a -> UI (GenericWidget Element b)
+createAndRender e b = create e b >>= renderEditor
 
--- | A function from 'Behavior' @a@ to 'Editor' @b@
+-- | A function from 'Behavior' @a@ to 'GenericWidget' @b@
 --   All the three type arguments are functorial, but @a@ is contravariant.
---   'EditorFactory' is a 'Biapplicative' functor on @el@ and @b@, and
+--   'Editor' is a 'Biapplicative' functor on @el@ and @b@, and
 --   a 'Profunctor' on @a@ and @b@.
-newtype EditorFactory a el b = EF {runEF :: Behavior a -> UI (Editor el b)}
+newtype Editor a el b = Editor {create :: Behavior a -> UI (GenericWidget el b)}
 
-_EditorFactory :: Iso (EditorFactory a el b) (EditorFactory a' el' b') (Behavior a -> UI (Editor el b)) (Behavior a' -> UI (Editor el' b'))
-_EditorFactory = iso runEF EF
+_Editor :: Iso (Editor a el b) (Editor a' el' b') (Behavior a -> UI (GenericWidget el b)) (Behavior a' -> UI (GenericWidget el' b'))
+_Editor = iso create Editor
 
 -- | A 'Setter' over the element of the editor being built
-editorFactoryElement :: Setter (EditorFactory a el b) (EditorFactory a el' b) el el'
-editorFactoryElement = _EditorFactory.mapped.mapped.editorElement
+editorFactoryElement :: Setter (Editor a el b) (Editor a el' b) el el'
+editorFactoryElement = _Editor.mapped.mapped.widgetControl
 
 -- | A 'Setter' over the input thing
-editorFactoryInput :: Setter (EditorFactory a el b) (EditorFactory a' el b) a' a
-editorFactoryInput = _EditorFactory.argument.mapped
+editorFactoryInput :: Setter (Editor a el b) (Editor a' el b) a' a
+editorFactoryInput = _Editor.argument.mapped
 
 -- | A 'Setter' over the output thing
-editorFactoryOutput :: Setter (EditorFactory a el b) (EditorFactory a el b') b b'
-editorFactoryOutput = _EditorFactory.mapped.mapped.mapped
+editorFactoryOutput :: Setter (Editor a el b) (Editor a el b') b b'
+editorFactoryOutput = _Editor.mapped.mapped.mapped
 
-liftElement :: UI el -> EditorFactory a el ()
-liftElement el = EF $ \_ -> Editor (pure ()) <$> el
+-- | Lift an HTML element into a vacuous editor.
+liftElement :: UI el -> Editor a el ()
+liftElement el = Editor $ \_ -> GenericWidget (pure ()) <$> el
 
-bimapEF :: (el -> el') -> (b -> b') -> EditorFactory a el b -> EditorFactory a el' b'
-bimapEF g h = EF . fmap (fmap (bimap g h)) . runEF
+bimapEditor :: (el -> el') -> (b -> b') -> Editor a el b -> Editor a el' b'
+bimapEditor g h = Editor . fmap (fmap (bimap g h)) . create
 
-dimapEF :: (a' -> a) -> (b -> b') -> EditorFactory a el b -> EditorFactory a' el b'
-dimapEF g h (EF f) = EF $ \b -> getCompose $ h <$> Compose (f (g <$> b))
+dimapE :: (a' -> a) -> (b -> b') -> Editor a el b -> Editor a' el b'
+dimapE g h (Editor f) = Editor $ \b -> getCompose $ h <$> Compose (f (g <$> b))
 
 -- | Applies a function over the input
-lmapEF :: (a' -> a) -> EditorFactory a el b -> EditorFactory a' el b
-lmapEF f = dimapEF f id
+lmapE :: (a' -> a) -> Editor a el b -> Editor a' el b
+lmapE f = dimapE f id
 
 -- | Focus the editor on the field retrieved by the getter.
 --   Use when composing editors via the Biapplicative interface
 --
--- > personEditor :: EditorFactory Person PersonEditor Person
+-- > personEditor :: Editor Person PersonEditor Person
 -- > personEditor =
 -- >     bipure Person Person
 -- >       <<*>> edit education editor
 -- >       <<*>> edit firstName editor
 -- >       <<*>> edit lastName  editor
-edit :: (a' -> a) -> EditorFactory a el b -> EditorFactory a' el b
-edit = lmapEF
+edit :: (a' -> a) -> Editor a el b -> Editor a' el b
+edit = lmapE
 
-applyEF :: (el1 -> el2 -> el) -> EditorFactory in_ el1 (a -> b) -> EditorFactory in_ el2 a -> EditorFactory in_ el b
-applyEF combineElements a b = EF $ \s -> do
-    a <- runEF a s
-    b <- runEF b s
-    return $ Editor (_editorTidings a <*> _editorTidings b) (_editorElement a `combineElements` _editorElement b)
+applyE :: (el1 -> el2 -> el) -> Editor in_ el1 (a -> b) -> Editor in_ el2 a -> Editor in_ el b
+applyE combineElements a b = Editor $ \s -> do
+    a <- create a s
+    b <- create b s
+    return $ GenericWidget (_widgetTidings a <*> _widgetTidings b) (_widgetControl a `combineElements` _widgetControl b)
 
-instance Functor (EditorFactory a el) where
-  fmap = dimapEF id
+instance Functor (Editor a el) where
+  fmap = dimapE id
 
-instance Bifunctor (EditorFactory a) where
-  bimap = bimapEF
+instance Bifunctor (Editor a) where
+  bimap = bimapEditor
 
-instance Biapplicative (EditorFactory a) where
-  bipure w o = EF $ \_ -> return $ Editor (pure o) w
-  (<<*>>) = applyEF ($)
+instance Biapplicative (Editor a) where
+  bipure w o = Editor $ \_ -> return $ GenericWidget (pure o) w
+  (<<*>>) = applyE ($)
 
-instance Monoid el => Applicative (EditorFactory a el) where
+instance Monoid el => Applicative (Editor a el) where
   pure = bipure mempty
-  (<*>) = applyEF mappend
+  (<*>) = applyE mappend
 
 -- | Applicative modifier for vertical composition of editor factories.
 --   This can be used in conjunction with ApplicativeDo as:
@@ -168,7 +170,7 @@ instance Monoid el => Applicative (EditorFactory a el) where
 -- >       return Person{..}
 --
 -- DEPRECATED: Use the 'Vertical' layout builder instead
-pattern Vertically :: EditorFactory a Layout b -> EditorFactory a Vertical b
+pattern Vertically :: Editor a Layout b -> Editor a Vertical b
 pattern Vertically {vertically} <- (withLayout getVertical -> vertically) where Vertically a = withLayout Vertical a
 
 -- | Applicative modifier for horizontal composition of editor factories.
@@ -181,109 +183,109 @@ pattern Vertically {vertically} <- (withLayout getVertical -> vertically) where 
 -- >       return Person{..}
 --
 -- DEPRECATED: Use the 'Horizontal' layout builder instead
-pattern Horizontally :: EditorFactory a Layout b -> EditorFactory a Horizontal b
+pattern Horizontally :: Editor a Layout b -> Editor a Horizontal b
 pattern Horizontally {horizontally} <- (withLayout getHorizontal -> horizontally) where Horizontally a = withLayout Horizontal a
 
 infixl 4 |*|, -*-
 infixl 5 |*, *|, -*, *-
 
 -- | Apply a layout builder.
-withLayout :: (layout -> layout') -> EditorFactory a layout b -> EditorFactory a layout' b
+withLayout :: (layout -> layout') -> Editor a layout b -> Editor a layout' b
 withLayout = over editorFactoryElement
 
 -- | Construct a concrete 'Layout'. Useful when combining heterogeneours layout builders.
-construct :: Renderable m => EditorFactory a m b -> EditorFactory a Layout b
+construct :: Renderable m => Editor a m b -> Editor a Layout b
 construct = withLayout getLayout
 
 -- | Left-right editor composition
-(|*|) :: EditorFactory s Layout (b -> a) -> EditorFactory s Layout b -> EditorFactory s Layout a
+(|*|) :: Editor s Layout (b -> a) -> Editor s Layout b -> Editor s Layout a
 a |*| b = withLayout getHorizontal $ withLayout Horizontal a <*> withLayout Horizontal b
 
--- | Left-right composition of an editorElement with a editor
-(*|) :: UI Element -> EditorFactory s Layout a -> EditorFactory s Layout a
+-- | Left-right composition of an widgetControl with a editor
+(*|) :: UI Element -> Editor s Layout a -> Editor s Layout a
 e *| a = withLayout getHorizontal $ liftElement(return $ horizontal e) *> withLayout Horizontal a
 
--- | Left-right composition of an editorElement with a editor
-(|*) :: EditorFactory s Layout a -> UI Element -> EditorFactory s Layout a
+-- | Left-right composition of an widgetControl with a editor
+(|*) :: Editor s Layout a -> UI Element -> Editor s Layout a
 a |* e = withLayout getHorizontal $ withLayout Horizontal a <* liftElement(return $ horizontal e)
 
 -- | Left-right editor composition
-(-*-) :: EditorFactory s Layout (b -> a) -> EditorFactory s Layout b -> EditorFactory s Layout a
+(-*-) :: Editor s Layout (b -> a) -> Editor s Layout b -> Editor s Layout a
 a -*- b = withLayout getVertical $ withLayout Vertical a <*> withLayout Vertical b
 
--- | Left-right composition of an editorElement with a editor
-(*-) :: UI Element -> EditorFactory s Layout a -> EditorFactory s Layout a
+-- | Left-right composition of an widgetControl with a editor
+(*-) :: UI Element -> Editor s Layout a -> Editor s Layout a
 e *- a = withLayout getVertical $ liftElement(return $ vertical e) *> withLayout Vertical a
 
--- | Left-right composition of an editorElement with a editor
-(-*) :: EditorFactory s Layout a -> UI Element -> EditorFactory s Layout a
+-- | Left-right composition of an widgetControl with a editor
+(-*) :: Editor s Layout a -> UI Element -> Editor s Layout a
 a -* e = withLayout getVertical $ withLayout Vertical a <* liftElement(return $ vertical e)
 
 -- | A helper that arranges a label with the field name
 --   and the editor horizontally. This version takes a Layout builder as well.
-fieldLayout :: (Renderable m, Renderable m') => (Layout -> m') -> String -> (out -> inn) -> EditorFactory inn m a -> EditorFactory out m' a
-fieldLayout l name f e = withLayout l (string name *| first getLayout (dimapEF f id e))
+fieldLayout :: (Renderable m, Renderable m') => (Layout -> m') -> String -> (out -> inn) -> Editor inn m a -> Editor out m' a
+fieldLayout l name f e = withLayout l (string name *| first getLayout (dimapE f id e))
 
 -- | A helper that arranges a label with the field name
 --   and the editor horizontally.
-field :: Renderable m => String -> (out -> inn) -> EditorFactory inn m a -> EditorFactory out Layout a
-field name f e = string name *| first getLayout (dimapEF f id e)
+field :: Renderable m => String -> (out -> inn) -> Editor inn m a -> Editor out Layout a
+field name f e = string name *| first getLayout (dimapE f id e)
 
-editorUnit :: EditorFactory b Element b
-editorUnit = EF $ \b -> do
+editorUnit :: Editor b Element b
+editorUnit = Editor $ \b -> do
     t <- new
-    return $ Editor (tidings b never) t
+    return $ GenericWidget (tidings b never) t
 
-editorCheckBox :: EditorFactory Bool Element Bool
-editorCheckBox = EF $ \b -> do
+editorCheckBox :: Editor Bool Element Bool
+editorCheckBox = Editor $ \b -> do
     t <- sink checked b $ input # set type_ "checkbox"
-    return $ Editor (tidings b $ checkedChange t) t
+    return $ GenericWidget (tidings b $ checkedChange t) t
 
-editorString :: EditorFactory String TextEntry String
-editorString = EF $ \b -> do
+editorString :: Editor String TextEntry String
+editorString = Editor $ \b -> do
     w <- askWindow
     t <- entry b
     liftIOLater $ do
       initialValue <- currentValue b
       _ <- runUI w $ set value initialValue (element t)
       return ()
-    return $ Editor (userText t) t
+    return $ GenericWidget (userText t) t
 
-editorReadShow :: (Read a, Show a) => EditorFactory (Maybe a) TextEntry (Maybe a)
-editorReadShow = EF $ \b -> do
-    e <- runEF editorString (maybe "" show <$> b)
+editorReadShow :: (Read a, Show a) => Editor (Maybe a) TextEntry (Maybe a)
+editorReadShow = Editor $ \b -> do
+    e <- create editorString (maybe "" show <$> b)
     let readIt "" = Nothing
         readIt x  = readMaybe x
     let t = tidings b (readIt <$> edited e)
-    return $ Editor t (_editorElement e)
+    return $ GenericWidget t (_widgetControl e)
 
 -- An editor that presents a choice of values.
 editorEnumBounded
   :: (Bounded a, Enum a, Ord a, Show a)
-  => Behavior(a -> UI Element) -> EditorFactory (Maybe a) (ListBox a) (Maybe a)
+  => Behavior(a -> UI Element) -> Editor (Maybe a) (ListBox a) (Maybe a)
 editorEnumBounded = editorSelection (pure $ enumFrom minBound)
 
 -- | An editor that presents a dynamic choice of values.
 editorSelection
   :: Ord a
-  => Behavior [a] -> Behavior(a -> UI Element) -> EditorFactory (Maybe a) (ListBox a) (Maybe a)
-editorSelection options display = EF $ \b -> do
+  => Behavior [a] -> Behavior(a -> UI Element) -> Editor (Maybe a) (ListBox a) (Maybe a)
+editorSelection options display = Editor $ \b -> do
   l <- listBox options b display
-  return $ Editor (tidings b (rumors $ userSelection l)) l
+  return $ GenericWidget (tidings b (rumors $ userSelection l)) l
 
 -- | Ignores 'Nothing' values and only updates for 'Just' values
-editorJust :: EditorFactory (Maybe b) el (Maybe b) -> EditorFactory b el b
-editorJust (EF editor) = EF $ \b -> do
+editorJust :: Editor (Maybe b) el (Maybe b) -> Editor b el b
+editorJust (Editor editor) = Editor $ \b -> do
   e <- editor (Just <$> b)
   let ev = filterJust (edited e)
-  return $ Editor (tidings b ev) (_editorElement e)
+  return $ GenericWidget (tidings b ev) (_widgetControl e)
 
 -- | An editor for union types, built from editors for its constructors.
 editorSum
   :: (Ord tag, Show tag, Renderable el)
-  => (Layout -> Layout -> Layout) -> [(tag, EditorFactory a el a)] -> (a -> tag) -> EditorFactory a Layout a
-editorSum combineLayout options selector = EF $ \ba -> do
-  options <- mapM (\(tag, EF mk) -> (tag,) <$> (mk ba >>= renderEditor)) options
+  => (Layout -> Layout -> Layout) -> [(tag, Editor a el a)] -> (a -> tag) -> Editor a Layout a
+editorSum combineLayout options selector = Editor $ \ba -> do
+  options <- mapM (\(tag, Editor mk) -> (tag,) <$> (mk ba >>= renderEditor)) options
   let tag = selector <$> ba
   tag' <- calmB tag
   let build a = lookup a options
@@ -291,7 +293,7 @@ editorSum combineLayout options selector = EF $ \ba -> do
   l <- listBox (pure $ fmap fst options) (Just <$> tag) (pure (string . show))
   -- a placeholder for the constructor editor
   nestedEditor <-
-    new # sink children ((\x -> [maybe (error "editorSum") _editorElement (build x)]) <$> tag')
+    new # sink children ((\x -> [maybe (error "editorSum") _widgetControl (build x)]) <$> tag')
   --
   let composed = combineLayout (Single (return $ getElement l)) (Single $ return nestedEditor)
   -- the result event fires when any of the nested editors or the tag selector fire.
@@ -300,7 +302,7 @@ editorSum combineLayout options selector = EF $ \ba -> do
       taggedOptions = sequenceA [(tag, ) <$> contents e | (tag, e) <- options]
       editedTag = filterJust $ flip lookup <$> taggedOptions <@> eTag
       editedE = head <$> unions (editedTag : editedEvents)
-  return $ Editor (tidings ba editedE) composed
+  return $ GenericWidget (tidings ba editedE) composed
 
-editorIdentity :: EditorFactory a el a -> EditorFactory (Identity a) el (Identity a)
-editorIdentity = dimapEF runIdentity Identity
+editorIdentity :: Editor a el a -> Editor (Identity a) el (Identity a)
+editorIdentity = dimapE runIdentity Identity
