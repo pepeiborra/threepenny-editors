@@ -1,6 +1,7 @@
 {-# LANGUAGE DataKinds       #-}
 {-# LANGUAGE DeriveFunctor   #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE ViewPatterns    #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
@@ -13,6 +14,7 @@ module Graphics.UI.Threepenny.Editors.Types
   , edited
   , contents
   , widgetControl
+  , widgetTidings
   , liftElement
   , Editor(.., Horizontally, horizontally, Vertically, vertically)
   , dimapE
@@ -67,12 +69,10 @@ data GenericWidget control a = GenericWidget
   }
   deriving Functor
 
+makeLenses ''GenericWidget
+
 instance Bifunctor GenericWidget where
   bimap f g (GenericWidget t e) = GenericWidget (g <$> t) (f e)
-
--- | A lens over the 'widgetControl' field
-widgetControl :: Lens (GenericWidget el a) (GenericWidget el' a) el el'
-widgetControl f (GenericWidget t el) = GenericWidget t <$> f el
 
 edited :: GenericWidget el a -> Event a
 edited = rumors . _widgetTidings

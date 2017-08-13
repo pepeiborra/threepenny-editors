@@ -22,6 +22,7 @@ module Graphics.UI.Threepenny.Editors
   , edited
   , contents
   , widgetControl
+  , widgetTidings
     -- * Editors
   , Editor(Horizontally, horizontally, Vertically, vertically)
   , someEditor
