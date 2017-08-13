@@ -27,7 +27,6 @@ module Graphics.UI.Threepenny.Editors
   , Editor(Horizontally, horizontally, Vertically, vertically)
   , someEditor
   , create
-  , createAndRender
   , lmapE
   , dimapE
   , Editable(..)

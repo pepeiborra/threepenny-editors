@@ -20,8 +20,6 @@ module Graphics.UI.Threepenny.Editors.Types
   , dimapE
   , lmapE
   , applyE
-  , createAndRender
-  , renderEditor
   , editorFactoryElement
   , editorFactoryInput
   , editorFactoryOutput
@@ -83,21 +81,23 @@ contents = facts . _widgetTidings
 instance Widget el => Widget (GenericWidget el a) where
   getElement = getElement . _widgetControl
 
+instance Renderable el => Renderable (GenericWidget el a) where
+  render = render . _widgetControl
+
 renderEditor :: Renderable w => GenericWidget w a -> UI (GenericWidget Element a)
 renderEditor = mapMOf widgetControl render
   where
     mapMOf l cmd = unwrapMonad . l (WrapMonad . cmd)
 
--- | Create an editor to display the argument.
---   User edits are fed back via the 'edited' 'Event'.
-createAndRender :: Renderable w => Editor a w b -> Behavior a -> UI (GenericWidget Element b)
-createAndRender e b = create e b >>= renderEditor
-
 -- | A function from 'Behavior' @a@ to 'GenericWidget' @b@
 --   All the three type arguments are functorial, but @a@ is contravariant.
 --   'Editor' is a 'Biapplicative' functor on @el@ and @b@, and
 --   a 'Profunctor' on @a@ and @b@.
-newtype Editor a el b = Editor {create :: Behavior a -> UI (GenericWidget el b)}
+newtype Editor a el b = Editor {
+  -- | Create an editor to display the argument.
+  --   User edits are fed back via the 'edited' 'Event'.
+  create :: Behavior a -> UI (GenericWidget el b)
+  }
 
 _Editor :: Iso (Editor a el b) (Editor a' el' b') (Behavior a -> UI (GenericWidget el b)) (Behavior a' -> UI (GenericWidget el' b'))
 _Editor = iso create Editor
