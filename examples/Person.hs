@@ -14,12 +14,14 @@ import           Control.Monad
 import           Data.Biapplicative
 import           Data.Default
 import           Data.Maybe
-import qualified Generics.SOP                         as SOP
-import           GHC.Generics
+import qualified Generics.SOP                              as SOP
+import           GHC.Generics                              (Generic)
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Editors
 import           Graphics.UI.Threepenny.Editors.Types
+import           Graphics.UI.Threepenny.Editors.Validation
 import           Graphics.UI.Threepenny.Elements
+import           Prelude                                   hiding (span)
 
 main :: IO ()
 main = startGUI defaultConfig setup
@@ -36,6 +38,13 @@ data PersonF (usage :: Usage) = Person
 
 type Person = PersonF Value
 type PersonEditor = PersonF Edit
+
+instance Validable Person where
+  validate Person{..}
+    | null firstName = Invalid "First name cannot be null"
+    | null lastName  = Invalid "Last name cannot be null"
+    | Just x <- age, x <= 0 = Invalid "Age must be a natural number"
+    | otherwise = Ok
 
 data LegalStatus
   = Single
@@ -151,24 +160,35 @@ instance Renderable PersonEditor where
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"
-  person1HV <- createAndRender editorPersonHV person1B
-  person1C <- createAndRender editorPersonColumns person1B
-  person2 <- createAndRender editorGeneric person1B
-  person3 <- createAndRender personEditor person1B
-  person1B <- stepper def (head <$> unions
+  person1HV <- create editorPersonHV person1B
+  person1C <- create editorPersonColumns person1B
+  person2  <- create editorGeneric person1B
+  person3e <- create personEditor person1B
+  -- When using a biapplicative editor, we can set the attributes of the field editors after creation.
+  _ <- element (firstName (_widgetControl person3e)) # set style [("background-color", "Blue")]
+  person1B <- accumB def (updateIfValid . head <$> unions
                             [ edited person1HV
                             , edited person1C
                             , edited person2
-                            , edited person3
+                            , edited person3e
                             ])
 
+  -- We can attach validation to any editor
+  validation <-
+      stepper Ok (validate . head <$>
+                  unions [ edited person1HV
+                          , edited person1C
+                          , edited person2
+                          , edited person3e])
+
   getBody w #+ [grid
-    [ [return $ _widgetControl person1HV]
+    [ [span # sink text (show <$> validation) # set style [("color", "red")]]
+    , [render person1HV]
     , [hr]
-    , [return $ _widgetControl person1C]
+    , [render person1C]
     , [hr]
-    , [return $ _widgetControl person2]
+    , [render person2]
     , [hr]
-    , [return $ _widgetControl person3]
+    , [render person3e]
     , [hr]
     ]]

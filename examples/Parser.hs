@@ -61,15 +61,15 @@ pModeEditor =
     -*- field "Language" baseLanguage (editorJust $ editorSelection (pure knownLanguages) (pure (string . show)))
     -*- field "Ignore pragmas" ignoreLanguagePragmas editor
 
-pMode' :: UI (Element, Behavior ParseMode)
+pMode' :: UI (UI Element, Behavior ParseMode)
 pMode' = mdo
-  parseModeE <- createAndRender pModeEditor parseModeB
+  parseModeE <- create pModeEditor parseModeB
   parseModeB <- stepper defaultParseMode (edited parseModeE)
-  return (_widgetControl parseModeE, parseModeB)
+  return (render parseModeE, parseModeB)
 
 setup :: Window -> UI ()
 setup window = void $ do
-    return window # set title "HSE parser"
+    _ <- return window # set title "HSE parser"
     mode <- pMode
     mode2 <- pMode'
 
@@ -83,4 +83,4 @@ setup window = void $ do
         # set (attr "readonly") "readonly"
         # sink value (parser <$> snd mode <*> sourceVal)
 
-    getBody window #+ [row [column [element source, element output], element $ fst mode, element $ fst mode2]]
+    getBody window #+ [row [column [element source, element output], element $ fst mode, fst mode2]]
