@@ -201,11 +201,11 @@ construct = withLayout getLayout
 (|*|) :: Editor s Layout (b -> a) -> Editor s Layout b -> Editor s Layout a
 a |*| b = withLayout getHorizontal $ withLayout Horizontal a <*> withLayout Horizontal b
 
--- | Left-right composition of an widgetControl with a editor
+-- | Left-right composition of an element with a editor
 (*|) :: UI Element -> Editor s Layout a -> Editor s Layout a
 e *| a = withLayout getHorizontal $ liftElement(return $ horizontal e) *> withLayout Horizontal a
 
--- | Left-right composition of an widgetControl with a editor
+-- | Left-right composition of an element with a editor
 (|*) :: Editor s Layout a -> UI Element -> Editor s Layout a
 a |* e = withLayout getHorizontal $ withLayout Horizontal a <* liftElement(return $ horizontal e)
 
@@ -213,11 +213,11 @@ a |* e = withLayout getHorizontal $ withLayout Horizontal a <* liftElement(retur
 (-*-) :: Editor s Layout (b -> a) -> Editor s Layout b -> Editor s Layout a
 a -*- b = withLayout getVertical $ withLayout Vertical a <*> withLayout Vertical b
 
--- | Left-right composition of an widgetControl with a editor
+-- | Left-right composition of an element with a editor
 (*-) :: UI Element -> Editor s Layout a -> Editor s Layout a
 e *- a = withLayout getVertical $ liftElement(return $ vertical e) *> withLayout Vertical a
 
--- | Left-right composition of an widgetControl with a editor
+-- | Left-right composition of an element with a editor
 (-*) :: Editor s Layout a -> UI Element -> Editor s Layout a
 a -* e = withLayout getVertical $ withLayout Vertical a <* liftElement(return $ vertical e)
 
