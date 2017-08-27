@@ -4,6 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-duplicate-exports  #-}
@@ -51,6 +52,7 @@ import           Control.Applicative
 import           Control.Lens                          hiding (beside, children,
                                                         element, set, ( # ))
 import           Data.Biapplicative
+import           Data.Coerce
 import           Data.Functor.Compose
 import           Graphics.UI.Threepenny.Attributes
 import           Graphics.UI.Threepenny.Core           as UI
@@ -123,7 +125,9 @@ bimapEditor :: (el -> el') -> (b -> b') -> Editor a el b -> Editor a el' b'
 bimapEditor g h = Editor . fmap (fmap (bimap g h)) . create
 
 dimapE :: (a' -> a) -> (b -> b') -> Editor a el b -> Editor a' el b'
-dimapE g h (Editor f) = Editor $ \b -> getCompose $ h <$> Compose (f (g <$> b))
+dimapE g h (Editor f) = Editor $ dimap (fmap g) (fmapUIGW h) f
+  where
+    fmapUIGW = coerce (fmap @ (Compose UI _))
 
 -- | Applies a function over the input
 lmapE :: (a' -> a) -> Editor a el b -> Editor a' el b
