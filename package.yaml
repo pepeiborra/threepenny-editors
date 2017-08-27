@@ -27,15 +27,7 @@ flags:
     default: False
     manual : True
 
-library:
-  source-dirs: 	src
-  exposed-modules:
-    - Graphics.UI.Threepenny.Editors
-    - Graphics.UI.Threepenny.Editors.Layout
-    - Graphics.UI.Threepenny.Editors.Utils
-    - Graphics.UI.Threepenny.Editors.Types
-    - Graphics.UI.Threepenny.Editors.Validation
-  dependencies:
+dependencies:
     - base >= 4.7 && < 5
     - bifunctors
     - containers
@@ -46,37 +38,34 @@ library:
     - threepenny-gui > 0.7
     - casing
 
+library:
+  source-dirs: 	src
+  exposed-modules:
+    - Graphics.UI.Threepenny.Editors
+    - Graphics.UI.Threepenny.Editors.Layout
+    - Graphics.UI.Threepenny.Editors.Utils
+    - Graphics.UI.Threepenny.Editors.Types
+    - Graphics.UI.Threepenny.Editors.Validation
+
 executables:
-  person:
+  person: &example
     source-dirs:  examples
     main: Person.hs
     when:
       condition: flag(buildExamples)
       then:
         dependencies:
-          - base
-          - bifunctors
-          - data-default
-          - generics-sop
-          - profunctors
-          - threepenny-gui
           - threepenny-editors
       else: 
         buildable: False
 
   parser:
-    source-dirs:  examples
+    <<: *example
     main: Parser.hs
     when:
       condition: flag(buildExamples)
       then:
         dependencies:
-          - base
-          - bifunctors
-          - data-default
-          - generics-sop
-          - profunctors
-          - threepenny-gui
           - threepenny-editors
           - haskell-src-exts
       else: 
