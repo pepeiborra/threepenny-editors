@@ -1,9 +1,10 @@
-{-# LANGUAGE DataKinds       #-}
-{-# LANGUAGE DeriveFunctor   #-}
-{-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TupleSections   #-}
-{-# LANGUAGE ViewPatterns    #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE DeriveFunctor       #-}
+{-# LANGUAGE PatternSynonyms     #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE ViewPatterns        #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-duplicate-exports  #-}
 
