@@ -70,3 +70,15 @@ executables:
           - haskell-src-exts
       else: 
         buildable: False
+
+  crud:
+    <<: *example
+    main: CRUD.hs
+    when:
+      condition: flag(buildExamples)
+      then:
+        dependencies:
+          - threepenny-editors
+          - containers
+      else: 
+        buildable: False
