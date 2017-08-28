@@ -1,3 +1,5 @@
+# 0.5.4 (2017-08-28)
+    * Generic derivation of `editor` for dual purpose datatypes.
 # 0.5.3 (2017-08-28)
     * Generic derivation for `render`.
     * Dropped dependency on the lens package.
