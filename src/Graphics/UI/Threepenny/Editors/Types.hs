@@ -2,7 +2,6 @@
 {-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -22,9 +21,6 @@ module Graphics.UI.Threepenny.Editors.Types
   , dimapE
   , lmapE
   , applyE
-  , editorFactoryElement
-  , editorFactoryInput
-  , editorFactoryOutput
     -- ** GenericWidget composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
@@ -48,12 +44,11 @@ module Graphics.UI.Threepenny.Editors.Types
   , construct
   ) where
 
-import           Control.Applicative
-import           Control.Lens                          hiding (beside, children,
-                                                        element, set, ( # ))
 import           Data.Biapplicative
 import           Data.Coerce
 import           Data.Functor.Compose
+import           Data.Functor.Identity
+import           Data.Profunctor
 import           Graphics.UI.Threepenny.Attributes
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Editors.Layout
@@ -65,57 +60,50 @@ import           Text.Read
 
 -- | A widget for editing values of type @a@.
 data GenericWidget control a = GenericWidget
-  { _widgetTidings :: Tidings a
-  , _widgetControl :: control
+  { widgetTidings :: Tidings a
+  , widgetControl :: control
   }
   deriving Functor
-
-makeLenses ''GenericWidget
 
 instance Bifunctor GenericWidget where
   bimap f g (GenericWidget t e) = GenericWidget (g <$> t) (f e)
 
+traverseControl :: Applicative f => (control -> f control') -> GenericWidget control a -> f (GenericWidget control' a)
+traverseControl f (GenericWidget t e) = GenericWidget t <$> f e
+
 edited :: GenericWidget el a -> Event a
-edited = rumors . _widgetTidings
+edited = rumors . widgetTidings
 
 contents :: GenericWidget el a -> Behavior a
-contents = facts . _widgetTidings
+contents = facts . widgetTidings
 
 instance Widget el => Widget (GenericWidget el a) where
-  getElement = getElement . _widgetControl
+  getElement = getElement . widgetControl
 
 instance Renderable el => Renderable (GenericWidget el a) where
-  render = render . _widgetControl
+  render = render . widgetControl
 
 renderEditor :: Renderable w => GenericWidget w a -> UI (GenericWidget Element a)
-renderEditor = mapMOf widgetControl render
-  where
-    mapMOf l cmd = unwrapMonad . l (WrapMonad . cmd)
+renderEditor = traverseControl render
 
--- | A function from 'Behavior' @a@ to 'GenericWidget' @b@
+-- | A widget @el@ for editing @b@ values while displaying @a@ values.
+--   For obvious reasons, @a@ and @b@ are usually the same type, except while composing editors.
 --   All the three type arguments are functorial, but @a@ is contravariant.
---   'Editor' is a 'Biapplicative' functor on @el@ and @b@, and
---   a 'Profunctor' on @a@ and @b@.
+--   'Editor' is a 'Biapplicative' functor on @el@ and @b@, and a 'Profunctor' on @a@ and @b@.
+--
+--   Editors compose using the Applicative interface when @el@ is monoidal
+--   or more generally with the Biapplicative interface. In both cases the
+--   Profunctor 'lmap' is used to select the value to display.
+--
+--   For an example of the Applicative interface, let's assemble the editor for a tuple of values:
+--
+--   > editorTuple = (,) <$> lmap fst editable <*> lmap snd editable
+
 newtype Editor a el b = Editor {
   -- | Create an editor to display the argument.
   --   User edits are fed back via the 'edited' 'Event'.
   create :: Behavior a -> UI (GenericWidget el b)
   }
-
-_Editor :: Iso (Editor a el b) (Editor a' el' b') (Behavior a -> UI (GenericWidget el b)) (Behavior a' -> UI (GenericWidget el' b'))
-_Editor = iso create Editor
-
--- | A 'Setter' over the element of the editor being built
-editorFactoryElement :: Setter (Editor a el b) (Editor a el' b) el el'
-editorFactoryElement = _Editor.mapped.mapped.widgetControl
-
--- | A 'Setter' over the input thing
-editorFactoryInput :: Setter (Editor a el b) (Editor a' el b) a' a
-editorFactoryInput = _Editor.argument.mapped
-
--- | A 'Setter' over the output thing
-editorFactoryOutput :: Setter (Editor a el b) (Editor a el b') b b'
-editorFactoryOutput = _Editor.mapped.mapped.mapped
 
 -- | Lift an HTML element into a vacuous editor.
 liftElement :: UI el -> Editor a el ()
@@ -133,8 +121,7 @@ dimapE g h (Editor f) = Editor $ dimap (fmap g) (fmapUIGW h) f
 lmapE :: (a' -> a) -> Editor a el b -> Editor a' el b
 lmapE f = dimapE f id
 
--- | Focus the editor on the field retrieved by the getter.
---   Use when composing editors via the Biapplicative interface
+-- | Use when composing Biapplicative editors to focus on a field.
 --
 -- > personEditor :: Editor Person PersonEditor Person
 -- > personEditor =
@@ -149,7 +136,7 @@ applyE :: (el1 -> el2 -> el) -> Editor in_ el1 (a -> b) -> Editor in_ el2 a -> E
 applyE combineElements a b = Editor $ \s -> do
     a <- create a s
     b <- create b s
-    return $ GenericWidget (_widgetTidings a <*> _widgetTidings b) (_widgetControl a `combineElements` _widgetControl b)
+    return $ GenericWidget (widgetTidings a <*> widgetTidings b) (widgetControl a `combineElements` widgetControl b)
 
 instance Functor (Editor a el) where
   fmap = dimapE id
@@ -196,7 +183,7 @@ infixl 5 |*, *|, -*, *-
 
 -- | Apply a layout builder.
 withLayout :: (layout -> layout') -> Editor a layout b -> Editor a layout' b
-withLayout = over editorFactoryElement
+withLayout f = bimap f id
 
 -- | Construct a concrete 'Layout'. Useful when combining heterogeneours layout builders.
 construct :: Renderable m => Editor a m b -> Editor a Layout b
@@ -262,7 +249,7 @@ editorReadShow = Editor $ \b -> do
     let readIt "" = Nothing
         readIt x  = readMaybe x
     let t = tidings b (readIt <$> edited e)
-    return $ GenericWidget t (_widgetControl e)
+    return $ GenericWidget t (widgetControl e)
 
 -- An editor that presents a choice of values.
 editorEnumBounded
@@ -283,7 +270,7 @@ editorJust :: Editor (Maybe b) el (Maybe b) -> Editor b el b
 editorJust (Editor editor) = Editor $ \b -> do
   e <- editor (Just <$> b)
   let ev = filterJust (edited e)
-  return $ GenericWidget (tidings b ev) (_widgetControl e)
+  return $ GenericWidget (tidings b ev) (widgetControl e)
 
 -- | An editor for union types, built from editors for its constructors.
 editorSum
@@ -298,7 +285,7 @@ editorSum combineLayout options selector = Editor $ \ba -> do
   l <- listBox (pure $ fmap fst options) (Just <$> tag) (pure (string . show))
   -- a placeholder for the constructor editor
   nestedEditor <-
-    new # sink children ((\x -> [maybe (error "editorSum") _widgetControl (build x)]) <$> tag')
+    new # sink children ((\x -> [maybe (error "editorSum") widgetControl (build x)]) <$> tag')
   --
   let composed = combineLayout (Single (return $ getElement l)) (Single $ return nestedEditor)
   -- the result event fires when any of the nested editors or the tag selector fire.

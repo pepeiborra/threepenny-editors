@@ -165,7 +165,7 @@ setup w = void $ mdo
   person2  <- create editorGeneric person1B
   person3e <- create personEditor person1B
   -- When using a biapplicative editor, we can set the attributes of the field editors after creation.
-  _ <- element (firstName (_widgetControl person3e)) # set style [("background-color", "Blue")]
+  _ <- element (firstName (widgetControl person3e)) # set style [("background-color", "Blue")]
   person1B <- accumB def (updateIfValid . head <$> unions
                             [ edited person1HV
                             , edited person1C

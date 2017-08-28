@@ -33,12 +33,13 @@ dependencies:
     - containers
     - data-default
     - generics-sop
-    - lens
     - profunctors
     - threepenny-gui > 0.7
     - casing
 
 library:
+  dependencies:
+    - template-haskell
   source-dirs: 	src
   exposed-modules:
     - Graphics.UI.Threepenny.Editors

@@ -19,9 +19,7 @@ import Control.Monad  (void)
 import Data.Biapplicative
 import Data.List      (isPrefixOf)
 import Data.Maybe
-import Data.Monoid
 import qualified Data.Map as Map
-import qualified Data.Set as Set
 
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Editors hiding (create)
@@ -106,8 +104,8 @@ setup window = void $ mdo
         bDisplayItem = maybe False (const True) <$> bSelection
     
     element deleteBtn # sink UI.enabled bDisplayItem
-    element (firstname $ _widgetControl dataItem) # sink UI.enabled bDisplayItem
-    element (lastname  $ _widgetControl dataItem) # sink UI.enabled bDisplayItem
+    element (firstname $ widgetControl dataItem) # sink UI.enabled bDisplayItem
+    element (lastname  $ widgetControl dataItem) # sink UI.enabled bDisplayItem
 
 
 {-----------------------------------------------------------------------------
