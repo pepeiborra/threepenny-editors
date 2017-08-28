@@ -16,7 +16,6 @@
 {-# OPTIONS_GHC -Wno-orphans            #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-duplicate-exports  #-}
-{-# OPTIONS_GHC -fdefer-type-errors  #-}
 
 module Graphics.UI.Threepenny.Editors
   ( -- * Widgets
