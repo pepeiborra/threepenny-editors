@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
+module Person (main) where
 import           Control.Monad
 import           Data.Biapplicative
 import           Data.Default

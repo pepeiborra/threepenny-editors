@@ -1,7 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-name-shadowing #-}
 {-# LANGUAGE RecursiveDo #-}
-
-module Main(main) where
+module Parser(main) where
 
 import qualified Graphics.UI.Threepenny         as UI
 import           Graphics.UI.Threepenny.Core

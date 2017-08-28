@@ -23,6 +23,7 @@ import qualified Data.Map as Map
 
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Editors hiding (create)
+module CRUD (main) where
 import qualified Graphics.UI.Threepenny.Editors as Editors
 import Graphics.UI.Threepenny.Core hiding (delete)
 

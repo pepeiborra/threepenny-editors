@@ -52,6 +52,8 @@ executables:
   person: &example
     source-dirs:  examples
     main: Person.hs
+    ghc-options: -main-is Person
+    other-modules: []
     when:
       condition: flag(buildExamples)
       then:
@@ -63,6 +65,7 @@ executables:
   parser:
     <<: *example
     main: Parser.hs
+    ghc-options: -main-is Parser
     when:
       condition: flag(buildExamples)
       then:
@@ -75,6 +78,7 @@ executables:
   crud:
     <<: *example
     main: CRUD.hs
+    ghc-options: -main-is CRUD
     when:
       condition: flag(buildExamples)
       then:
