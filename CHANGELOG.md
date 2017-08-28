@@ -1,3 +1,14 @@
+# 0.5.3 (2017-08-28)
+    * Generic derivation for `render`.
+    * Dropped dependency on the lens package.
+    * Added a new example CRUD exercising the Biapplicative interface.
+    * Fixed building of examples with Cabal 2.
+    * Changes to the validation module type signatures.
+# 0.5.2 (2017-08-13)
+    * Name changes:
+      - `EditorFactory` is now `Editor`.
+      - `Editor` is now `GenericWidget`.
+    * Added a module with utilities for doing data validation.
 # 0.5.1 (2017-07-30)
     * Fix a build issue with GHC 8.2.1
 # 0.5.0 (2017-07-30)
