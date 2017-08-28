@@ -1,3 +1,4 @@
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DefaultSignatures          #-}
@@ -15,6 +16,7 @@
 {-# OPTIONS_GHC -Wno-orphans            #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-duplicate-exports  #-}
+{-# OPTIONS_GHC -fdefer-type-errors  #-}
 
 module Graphics.UI.Threepenny.Editors
   ( -- * Widgets
@@ -56,6 +58,7 @@ module Graphics.UI.Threepenny.Editors
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
+  , editorGenericSimpleBi
     -- * Layouts
   , Layout
   , above
@@ -228,6 +231,72 @@ getLayoutConstructor (Infix name _ _) (I r1 :* I r2 :* Nil) = [[ getLayout r1, g
 
 getLayoutField :: Renderable x => FieldInfo x -> x -> [Layout]
 getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
+
+{----------------------------------------------
+  Generic derivations for Biapplicative editors
+-----------------------------------------------}
+-- | A generic implementation of 'editor' for dual purpose datatypes with a single constructor.
+--
+--   /e.g./ for the datatype
+--
+-- @
+--  data Person usage = Person { firstName, lastName :: Field usage String }
+-- @
+--
+-- @ instance Editable (Person Value) where
+--     type EditorWidget (Person Value) = Person Edit
+--     editor = editorGenericSimpleBi
+-- @
+--
+--   will be equivalent to
+--
+-- > instance Editable (Person Value) where
+-- >  type EditorWidget (Person Value) = Person Edit
+-- >  editor = bipure DataItem DataItem
+-- >              <<*>> edit firstName editor
+-- >              <<*>> edit lastName editor
+-- 
+editorGenericSimpleBi
+  :: forall xs typ .
+     ( Generic (typ 'Value)
+     , Generic (typ 'Edit)
+     , All Editable xs
+     , Code (typ 'Value) ~ '[xs]
+     , Code (typ 'Edit) ~ '[EditorWidgetsFor xs]
+     )
+  => Editor (typ 'Value) (typ 'Edit) (typ 'Value)
+editorGenericSimpleBi = dimapE from to $ bimap to id $ constructorEditorBi
+
+constructorEditorBi
+  :: forall xs . (All Editable xs)
+  => Editor (SOP I '[xs]) (SOP I '[EditorWidgetsFor xs]) (SOP I '[xs])
+constructorEditorBi = dimapE (unZ . unSOP) (SOP . Z) . bimap (SOP . Z . unpackWidgets) id $ constructorEditorBi'
+
+constructorEditorBi' :: (SListI xs, All Editable xs) => Editor (NP I xs) (NP EditorWidgetFor xs) (NP I xs)
+constructorEditorBi' = sequence_NP2 fieldsEditorBi
+
+unpackWidgets :: NP EditorWidgetFor xs -> NP I (EditorWidgetsFor xs)
+unpackWidgets Nil = Nil
+unpackWidgets (EditorWidgetFor e :* xs) = I e :* unpackWidgets xs
+
+type family EditorWidgetsFor (xs :: [*]) where
+  EditorWidgetsFor '[] = '[]
+  EditorWidgetsFor (x ': xs) = EditorWidget x ': EditorWidgetsFor xs
+
+fieldsEditorBi :: forall xs . All Editable xs => NP2 EditorWidgetFor (Editor (NP I xs)) xs
+fieldsEditorBi = go id sList where
+  go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP2 EditorWidgetFor (Editor (NP I xs)) ys
+  go _ SNil = Nil2
+  go f SCons = bimap EditorWidgetFor id (edit (unI . hd . f) editor) :** go (tl . f) sList
+
+
+data NP2 :: (k -> *) -> (k -> k -> *) -> [k] -> * where
+  Nil2 :: NP2 w f '[]
+  (:**) :: f (w x) x -> NP2 w f xs -> NP2 w f (x ': xs)
+
+sequence_NP2 :: Biapplicative f => NP2 w f xs -> f (NP w xs) (NP I xs)
+sequence_NP2 Nil2 = bipure Nil Nil
+sequence_NP2 (x :** xs) = bipure (:*) (\x xx -> I x :* xx) <<*>> x <<*>> sequence_NP2 xs
 
 {----------------------------------------------
   Generic derivations for Applicative Editables

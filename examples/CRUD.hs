@@ -1,11 +1,11 @@
+{-# LANGUAGE DataKinds            #-}
+{-# LANGUAGE DeriveGeneric        #-}
+{-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE KindSignatures       #-}
+{-# LANGUAGE RecordWildCards      #-}
+{-# LANGUAGE TemplateHaskell      #-}
+{-# LANGUAGE TypeFamilies         #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-----------------------------------------------------------------------------
     Example from threepenny-gui extended with Editors:
 
@@ -14,20 +14,19 @@
     that the database is updated. This is perfectly fine for rapid prototyping.
     A more sophisticated approach would use incremental updates.
 ------------------------------------------------------------------------------}
-{-# LANGUAGE RecursiveDo #-}
+{-# LANGUAGE RecursiveDo          #-}
 module CRUD (main) where
-import Prelude hiding (lookup)
-import Control.Monad  (void)
-import Data.Biapplicative
-import Data.List      (isPrefixOf)
-import Data.Maybe
-import qualified Data.Map as Map
-import Generics.SOP.TH
+import           Control.Monad                  (void)
+import           Data.List                      (isPrefixOf)
+import qualified Data.Map                       as Map
+import           Data.Maybe
+import           Generics.SOP.TH
+import           Prelude                        hiding (lookup)
 
-import qualified Graphics.UI.Threepenny as UI
-import Graphics.UI.Threepenny.Editors hiding (create)
+import qualified Graphics.UI.Threepenny         as UI
+import           Graphics.UI.Threepenny.Core    hiding (delete)
+import           Graphics.UI.Threepenny.Editors hiding (create)
 import qualified Graphics.UI.Threepenny.Editors as Editors
-import Graphics.UI.Threepenny.Core hiding (delete)
 
 {-----------------------------------------------------------------------------
     Main
@@ -132,18 +131,17 @@ data DataItemDual (usage :: Usage) = DataItem
   { firstName, lastName :: Field usage String
   }
 
-showDataItem :: DataItem -> String
-showDataItem DataItem{..} = lastName ++ ", " ++ firstName
-
 type DataItem = DataItemDual Value
 type DataItemEditor = DataItemDual Edit
 
+showDataItem :: DataItem -> String
+showDataItem DataItem{..} = lastName ++ ", " ++ firstName
+
 instance Editable DataItem where
   type EditorWidget DataItem = DataItemEditor
-  editor = bipure DataItem DataItem
-           <<*>> edit firstName editor
-           <<*>> edit lastName editor
+  editor = editorGenericSimpleBi
 
-deriveGeneric ''DataItemDual
 instance Renderable DataItemEditor where
   render = renderGeneric
+
+deriveGeneric ''DataItemDual
