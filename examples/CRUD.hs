@@ -1,3 +1,5 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -13,17 +15,17 @@
     A more sophisticated approach would use incremental updates.
 ------------------------------------------------------------------------------}
 {-# LANGUAGE RecursiveDo #-}
-
+module CRUD (main) where
 import Prelude hiding (lookup)
 import Control.Monad  (void)
 import Data.Biapplicative
 import Data.List      (isPrefixOf)
 import Data.Maybe
 import qualified Data.Map as Map
+import Generics.SOP.TH
 
 import qualified Graphics.UI.Threepenny as UI
 import Graphics.UI.Threepenny.Editors hiding (create)
-module CRUD (main) where
 import qualified Graphics.UI.Threepenny.Editors as Editors
 import Graphics.UI.Threepenny.Core hiding (delete)
 
@@ -46,7 +48,7 @@ setup window = void $ mdo
 
     -- GUI layout
     element listBox # set (attr "size") "10" # set style [("width","200px")]
-    
+
     let glue = string " "
     getBody window #+ [grid
         [[row [string "Filter prefix:", element filterEntry], glue]
@@ -61,7 +63,7 @@ setup window = void $ mdo
         eFilter = rumors tFilter
 
     let eSelection  = rumors $ UI.userSelection listBox
-        eDataItemIn = edited $ dataItem
+        eDataItemIn = edited dataItem
         eCreate     = UI.click createBtn
         eDelete     = UI.click deleteBtn
 
@@ -83,15 +85,15 @@ setup window = void $ mdo
         , (\b s p -> b >>= \a -> if p (s a) then Just a else Nothing)
             <$> bSelection <*> bShowDataItem <@> eFilter
         ]
-                
+
     let bLookup :: Behavior (DatabaseKey -> Maybe DataItem)
         bLookup = flip lookup <$> bDatabase
-                
+
         bShowDataItem :: Behavior (DatabaseKey -> String)
         bShowDataItem = (maybe "" showDataItem .) <$> bLookup
 
         bDisplayDataItem = (UI.string .) <$> bShowDataItem
-                
+
         bListBoxItems :: Behavior [DatabaseKey]
         bListBoxItems = (\p show -> filter (p. show) . keys)
                     <$> bFilter <*> bShowDataItem <*> bDatabase
@@ -102,11 +104,11 @@ setup window = void $ mdo
     -- automatically enable / disable editing
     let
         bDisplayItem :: Behavior Bool
-        bDisplayItem = maybe False (const True) <$> bSelection
-    
+        bDisplayItem = isJust <$> bSelection
+
     element deleteBtn # sink UI.enabled bDisplayItem
-    element (firstname $ widgetControl dataItem) # sink UI.enabled bDisplayItem
-    element (lastname  $ widgetControl dataItem) # sink UI.enabled bDisplayItem
+    element (firstName $ widgetControl dataItem) # sink UI.enabled bDisplayItem
+    element (lastName  $ widgetControl dataItem) # sink UI.enabled bDisplayItem
 
 
 {-----------------------------------------------------------------------------
@@ -127,8 +129,11 @@ lookup key   (Database _      db) = Map.lookup key db
     Data items that are stored in the data base
 ------------------------------------------------------------------------------}
 data DataItemDual (usage :: Usage) = DataItem
-  { firstname, lastname :: Field usage String
+  { firstName, lastName :: Field usage String
   }
+
+showDataItem :: DataItem -> String
+showDataItem DataItem{..} = lastName ++ ", " ++ firstName
 
 type DataItem = DataItemDual Value
 type DataItemEditor = DataItemDual Edit
@@ -136,13 +141,9 @@ type DataItemEditor = DataItemDual Edit
 instance Editable DataItem where
   type EditorWidget DataItem = DataItemEditor
   editor = bipure DataItem DataItem
-           <<*>> edit firstname editor
-           <<*>> edit lastname editor
+           <<*>> edit firstName editor
+           <<*>> edit lastName editor
 
+deriveGeneric ''DataItemDual
 instance Renderable DataItemEditor where
-  render DataItem{..} =
-    grid [[string "First Name:", element firstname]
-         ,[string "Last Name:" , element lastname]]
-
-showDataItem DataItem{..} = lastname ++ ", " ++ firstname
-
+  render = renderGeneric

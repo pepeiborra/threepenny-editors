@@ -69,6 +69,7 @@ module Graphics.UI.Threepenny.Editors
   , type (-*-)(..)
   -- ** Custom layout definition
   , Renderable(..)
+  , renderGeneric
   -- * Validation
   , Validable(..)
   , ValidationResult
@@ -167,9 +168,34 @@ instance Editable a => Editable (Identity a) where
   type EditorWidget (Identity a) = EditorWidget a
   editor = editorIdentity editor
 
-{--------------------------------------------
-  Generic derivations
----------------------------------------------}
+{----------------------------------------------
+  Generic derivations for Renderable datatypes
+-----------------------------------------------}
+-- | A generic implementation of 'render' for record types
+--   with a fixed vertical layout.
+renderGeneric
+  :: forall a xs.
+     (Generic a, HasDatatypeInfo a, All Renderable xs, Code a ~ '[xs])
+  => a -> UI Element
+renderGeneric = renderGeneric' (datatypeInfo (Proxy @ a)) . from
+
+renderGeneric' :: (All Renderable xs) => DatatypeInfo '[xs] -> SOP I '[xs] -> UI Element
+renderGeneric' (ADT _ _ (c :* Nil)) (SOP (Z x)) = renderGenericFor c x
+renderGeneric' (Newtype _ _ c) (SOP (Z x)) = renderGenericFor c x
+renderGeneric' _ _ = error "unreachable"
+
+renderGenericFor :: All Renderable xs => ConstructorInfo xs -> NP I xs -> UI Element
+renderGenericFor (Record _ fields) renders = grid $ hcollapse $ hcliftA2 (Proxy @ Renderable) (\f (I x) -> K $ renderField f x) fields renders
+renderGenericFor Constructor{} renders = grid $ hcollapse $ hcliftA (Proxy @ Renderable) (\(I x) -> K [render x]) renders
+renderGenericFor (Infix name _ _) (I r1 :* I r2 :* Nil) = grid [[ render r1, string name, render r2]]
+
+renderField :: Renderable x => FieldInfo x -> x -> [UI Element]
+renderField (FieldInfo name) x =  [string (toFieldLabel name), render x]
+{-# LANGUAGE ApplicativeDo              #-}
+
+{----------------------------------------------
+  Generic derivations for Applicative Editables
+-----------------------------------------------}
 -- | A generic editor for record types.
 editorGenericSimple
   :: forall a xs.
