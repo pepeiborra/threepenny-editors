@@ -176,7 +176,7 @@ instance Editable a => Editable (Identity a) where
 {----------------------------------------------
   Generic derivations for Renderable datatypes
 -----------------------------------------------}
--- | A generic implementation of 'render' for data types with a single constructor
+-- | A generic 'render' derivation for data types with a single constructor
 --   which renders the (labelled) fields in a vertical layout.
 --   For custom layouts use `getLayoutGeneric`.
 --
@@ -235,7 +235,7 @@ getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
 {----------------------------------------------
   Generic derivations for Biapplicative editors
 -----------------------------------------------}
--- | A generic implementation of 'editor' for dual purpose datatypes with a single constructor.
+-- | A generic 'editor' derivation for dual purpose datatypes with a single constructor.
 --
 --   /e.g./ for the datatype
 --
@@ -289,10 +289,10 @@ fieldsEditorBi = go id sList where
   go _ SNil = Nil2
   go f SCons = bimap EditorWidgetFor id (edit (unI . hd . f) editor) :** go (tl . f) sList
 
-
+-- A bifunctorial version of NP, used to sequence the applicative effects
 data NP2 :: (k -> *) -> (k -> k -> *) -> [k] -> * where
-  Nil2 :: NP2 w f '[]
-  (:**) :: f (w x) x -> NP2 w f xs -> NP2 w f (x ': xs)
+  Nil2 :: NP2 ann f '[]
+  (:**) :: f (ann x) x -> NP2 ann f xs -> NP2 ann f (x ': xs)
 
 sequence_NP2 :: Biapplicative f => NP2 w f xs -> f (NP w xs) (NP I xs)
 sequence_NP2 Nil2 = bipure Nil Nil
@@ -301,7 +301,11 @@ sequence_NP2 (x :** xs) = bipure (:*) (\x xx -> I x :* xx) <<*>> x <<*>> sequenc
 {----------------------------------------------
   Generic derivations for Applicative Editables
 -----------------------------------------------}
--- | A generic editor for record types.
+-- | A generic 'editor' derivation for data types with a single constructor.
+--   Doesn't require a 'Default' instance.
+--
+--   The datatype arguments are layered in vertical fashion and labelled with
+--   field names if available.
 editorGenericSimple
   :: forall a xs.
      (Generic a, HasDatatypeInfo a, All Editable xs, Code a ~ '[xs])
@@ -323,7 +327,11 @@ constructorEditorFor (Record _ fields) = dimapE (unZ . unSOP) (SOP . Z) $ constr
 constructorEditorFor (Constructor _) = dimapE (unZ . unSOP) (SOP . Z) someEditor
 constructorEditorFor Infix{} = dimapE (unZ . unSOP) (SOP . Z) someEditor
 
--- | A generic editor for SOP types.
+-- | A generic 'editor' derivation for SOP types.
+--   The 'Default' instance is only used when there is more than one constructor.
+--
+--   The datatype arguments are layered in vertical fashion and labelled with
+--   field names if available.
 editorGeneric
   :: forall a .
      (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)))
