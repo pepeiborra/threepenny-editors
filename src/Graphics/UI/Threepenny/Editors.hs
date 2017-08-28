@@ -67,8 +67,16 @@ module Graphics.UI.Threepenny.Editors
   -- ** Type level layouts
   , type (|*|)(..)
   , type (-*-)(..)
-  -- ** Layout manipulation
+  -- ** Custom layout definition
   , Renderable(..)
+  -- * Validation
+  , Validable(..)
+  , ValidationResult
+  , ok
+  , fromWarnings
+  , getWarnings
+  , isValid
+  , updateIfValid
   ) where
 
 import           Data.Biapplicative
@@ -84,6 +92,7 @@ import           Text.Casing
 
 import           Graphics.UI.Threepenny.Editors.Layout
 import           Graphics.UI.Threepenny.Editors.Types
+import           Graphics.UI.Threepenny.Editors.Validation
 
 -- | The class of 'Editable' datatypes.
 --   .

@@ -18,8 +18,6 @@ import qualified Generics.SOP                              as SOP
 import           GHC.Generics                              (Generic)
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Editors
-import           Graphics.UI.Threepenny.Editors.Types
-import           Graphics.UI.Threepenny.Editors.Validation
 import           Graphics.UI.Threepenny.Elements
 import           Prelude                                   hiding (span)
 
@@ -40,11 +38,10 @@ type Person = PersonF Value
 type PersonEditor = PersonF Edit
 
 instance Validable Person where
-  validate Person{..}
-    | null firstName = Invalid "First name cannot be null"
-    | null lastName  = Invalid "Last name cannot be null"
-    | Just x <- age, x <= 0 = Invalid "Age must be a natural number"
-    | otherwise = Ok
+  validate Person{..} = fromWarnings $ 
+    [ "First name cannot be null" | null firstName ] ++
+    [ "Last name cannot be null"  | null lastName ] ++
+    [ "Age must be a natural number" | Just x <- [age], x <= 0]
 
 data LegalStatus
   = Single
@@ -175,7 +172,7 @@ setup w = void $ mdo
 
   -- We can attach validation to any editor
   validation <-
-      stepper Ok (validate . head <$>
+      stepper ok (validate . head <$>
                   unions [ edited person1HV
                           , edited person1C
                           , edited person2
