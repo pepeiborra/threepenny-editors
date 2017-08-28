@@ -38,8 +38,6 @@ dependencies:
     - casing
 
 library:
-  dependencies:
-    - template-haskell
   source-dirs: 	src
   exposed-modules:
     - Graphics.UI.Threepenny.Editors
