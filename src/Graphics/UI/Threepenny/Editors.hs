@@ -70,6 +70,7 @@ module Graphics.UI.Threepenny.Editors
   -- ** Custom layout definition
   , Renderable(..)
   , renderGeneric
+  , getLayoutGeneric
   -- * Validation
   , Validable(..)
   , ValidationResult
@@ -86,6 +87,7 @@ import           Data.Default
 import           Data.Functor.Compose
 import           Data.Functor.Identity
 import           Data.Maybe
+import qualified Data.Sequence as Seq
 import           Generics.SOP                          hiding (Compose)
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Widgets
@@ -171,27 +173,61 @@ instance Editable a => Editable (Identity a) where
 {----------------------------------------------
   Generic derivations for Renderable datatypes
 -----------------------------------------------}
--- | A generic implementation of 'render' for record types
---   with a fixed vertical layout.
+-- | A generic implementation of 'render' for data types with a single constructor
+--   which renders the (labelled) fields in a vertical layout.
+--   For custom layouts use `getLayoutGeneric`.
+--
+-- /e.g./ given the declarations
+--
+-- @
+-- data PersonEditor = PersonEditor { firstName, lastName :: EditorWidget String }
+-- deriveGeneric ''PersonEditor
+-- @
+--
+-- using `renderGeneric` to instantiate `Renderable`
+--
+-- @
+-- instance Renderable PersonEditor where
+--   getLayout = renderGeneric
+-- @
+--
+-- will be equivalent to writing the below by hand
+--
+-- @
+-- instance Renderable PersonEditor where
+--   getLayout PersonEditor{..} =
+--       grid [ [string "First name:", element firstName]
+--            , [string "Last name:",  element lastName ]
+--            ]
+-- @
+
 renderGeneric
   :: forall a xs.
      (Generic a, HasDatatypeInfo a, All Renderable xs, Code a ~ '[xs])
   => a -> UI Element
-renderGeneric = renderGeneric' (datatypeInfo (Proxy @ a)) . from
+renderGeneric = render . (Grid . Seq.fromList . fmap Seq.fromList) . getLayoutGeneric
 
-renderGeneric' :: (All Renderable xs) => DatatypeInfo '[xs] -> SOP I '[xs] -> UI Element
-renderGeneric' (ADT _ _ (c :* Nil)) (SOP (Z x)) = renderGenericFor c x
-renderGeneric' (Newtype _ _ c) (SOP (Z x)) = renderGenericFor c x
-renderGeneric' _ _ = error "unreachable"
+-- | A helper to implement `getLayout` for data types with a single constructor.
+--   Given a value, `getLayoutGeneric` returns a grid of `Layout`s with one row per field.
+--   Rows can carry one element, for unnamed fields; two elements, for named fields; or three elements, for operators.
+getLayoutGeneric
+  :: forall a xs.
+     (Generic a, HasDatatypeInfo a, All Renderable xs, Code a ~ '[xs])
+  => a -> [[Layout]]
+getLayoutGeneric = getLayoutGeneric' (datatypeInfo (Proxy @ a)) . from
 
-renderGenericFor :: All Renderable xs => ConstructorInfo xs -> NP I xs -> UI Element
-renderGenericFor (Record _ fields) renders = grid $ hcollapse $ hcliftA2 (Proxy @ Renderable) (\f (I x) -> K $ renderField f x) fields renders
-renderGenericFor Constructor{} renders = grid $ hcollapse $ hcliftA (Proxy @ Renderable) (\(I x) -> K [render x]) renders
-renderGenericFor (Infix name _ _) (I r1 :* I r2 :* Nil) = grid [[ render r1, string name, render r2]]
+getLayoutGeneric' :: (All Renderable xs) => DatatypeInfo '[xs] -> SOP I '[xs] -> [[Layout]]
+getLayoutGeneric' (ADT _ _ (c :* Nil)) (SOP (Z x)) = getLayoutConstructor c x
+getLayoutGeneric' (Newtype _ _ c) (SOP (Z x)) = getLayoutConstructor c x
+getLayoutGeneric' _ _ = error "unreachable"
 
-renderField :: Renderable x => FieldInfo x -> x -> [UI Element]
-renderField (FieldInfo name) x =  [string (toFieldLabel name), render x]
-{-# LANGUAGE ApplicativeDo              #-}
+getLayoutConstructor :: All Renderable xs => ConstructorInfo xs -> NP I xs -> [[Layout]]
+getLayoutConstructor (Record _ fields) renders = hcollapse $ hcliftA2 (Proxy @ Renderable) (\f (I x) -> K $ getLayoutField f x) fields renders
+getLayoutConstructor Constructor{} renders = hcollapse $ hcliftA (Proxy @ Renderable) (\(I x) -> K [getLayout x]) renders
+getLayoutConstructor (Infix name _ _) (I r1 :* I r2 :* Nil) = [[ getLayout r1, getLayout(string name), getLayout r2]]
+
+getLayoutField :: Renderable x => FieldInfo x -> x -> [Layout]
+getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
 
 {----------------------------------------------
   Generic derivations for Applicative Editables
