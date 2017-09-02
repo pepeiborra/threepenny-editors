@@ -15,12 +15,12 @@ import           Control.Monad
 import           Data.Biapplicative
 import           Data.Default
 import           Data.Maybe
-import qualified Generics.SOP                              as SOP
-import           GHC.Generics                              (Generic)
+import qualified Generics.SOP                    as SOP
+import           GHC.Generics                    (Generic)
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Editors
 import           Graphics.UI.Threepenny.Elements
-import           Prelude                                   hiding (span)
+import           Prelude                         hiding (span)
 
 main :: IO ()
 main = startGUI defaultConfig setup
@@ -35,11 +35,11 @@ data PersonF (usage :: Usage) = Person
   }
   deriving (Generic)
 
-type Person = PersonF Value
+type Person = PersonF Data
 type PersonEditor = PersonF Edit
 
 instance Validable Person where
-  validate Person{..} = fromWarnings $ 
+  validate Person{..} = fromWarnings $
     [ "First name cannot be null" | null firstName ] ++
     [ "Last name cannot be null"  | null lastName ] ++
     [ "Age must be a natural number" | Just x <- [age], x <= 0]

@@ -122,7 +122,7 @@ data EditorWidgetFor a where
   EditorWidgetFor :: Editable a => EditorWidget a -> EditorWidgetFor a
 
 -- | 'Usage' is a kind for type level 'Field's
-data Usage = Value | Edit
+data Usage = Data | Edit
 
 -- | Type level fields. Use this helper to define EditorWidget types. Example:
 --
@@ -131,10 +131,10 @@ data Usage = Value | Edit
 -- >   , firstName, lastName :: Field usage String
 -- >   , age                 :: Field usage (Maybe Int)
 --
--- > type Person = PersonF Value
+-- > type Person = PersonF Data
 -- > type PersonEditor = PersonF Edit
 type family Field (usage :: Usage) a where
-  Field 'Value  a = a
+  Field 'Data  a = a
   Field 'Edit a = EditorWidget a
 
 instance Editable () where
@@ -240,28 +240,28 @@ getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
 --  data Person usage = Person { firstName, lastName :: Field usage String }
 -- @
 --
--- @ instance Editable (Person Value) where
---     type EditorWidget (Person Value) = Person Edit
+-- @ instance Editable (Person Data) where
+--     type EditorWidget (Person Data) = Person Edit
 --     editor = editorGenericSimpleBi
 -- @
 --
 --   will be equivalent to
 --
--- > instance Editable (Person Value) where
--- >  type EditorWidget (Person Value) = Person Edit
+-- > instance Editable (Person Data) where
+-- >  type EditorWidget (Person Data) = Person Edit
 -- >  editor = bipure DataItem DataItem
 -- >              <<*>> edit firstName editor
 -- >              <<*>> edit lastName editor
 -- 
 editorGenericSimpleBi
   :: forall xs typ .
-     ( Generic (typ 'Value)
+     ( Generic (typ 'Data)
      , Generic (typ 'Edit)
      , All Editable xs
-     , Code (typ 'Value) ~ '[xs]
+     , Code (typ 'Data) ~ '[xs]
      , Code (typ 'Edit) ~ '[EditorWidgetsFor xs]
      )
-  => Editor (typ 'Value) (typ 'Edit) (typ 'Value)
+  => Editor (typ 'Data) (typ 'Edit) (typ 'Data)
 editorGenericSimpleBi = dimapE from to $ bimap to id $ constructorEditorBi
 
 constructorEditorBi

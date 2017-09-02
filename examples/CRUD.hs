@@ -131,7 +131,7 @@ data DataItemDual (usage :: Usage) = DataItem
   { firstName, lastName :: Field usage String
   }
 
-type DataItem = DataItemDual Value
+type DataItem = DataItemDual Data
 type DataItemEditor = DataItemDual Edit
 
 showDataItem :: DataItem -> String
