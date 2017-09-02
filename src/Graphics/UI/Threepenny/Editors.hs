@@ -55,7 +55,7 @@ module Graphics.UI.Threepenny.Editors
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
-  , editorGenericSimpleBi
+  , editorGenericBi
     -- * Layouts
   , Layout
   , above
@@ -242,7 +242,7 @@ getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
 --
 -- @ instance Editable (Person Data) where
 --     type EditorWidget (Person Data) = Person Edit
---     editor = editorGenericSimpleBi
+--     editor = editorGenericBi
 -- @
 --
 --   will be equivalent to
@@ -253,7 +253,7 @@ getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
 -- >              <<*>> edit firstName editor
 -- >              <<*>> edit lastName editor
 -- 
-editorGenericSimpleBi
+editorGenericBi
   :: forall xs typ .
      ( Generic (typ 'Data)
      , Generic (typ 'Edit)
@@ -262,7 +262,7 @@ editorGenericSimpleBi
      , Code (typ 'Edit) ~ '[EditorWidgetsFor xs]
      )
   => Editor (typ 'Data) (typ 'Edit) (typ 'Data)
-editorGenericSimpleBi = dimapE from to $ bimap to id $ constructorEditorBi
+editorGenericBi = dimapE from to $ bimap to id $ constructorEditorBi
 
 constructorEditorBi
   :: forall xs . (All Editable xs)

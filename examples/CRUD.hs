@@ -139,7 +139,7 @@ showDataItem DataItem{..} = lastName ++ ", " ++ firstName
 
 instance Editable DataItem where
   type EditorWidget DataItem = DataItemEditor
-  editor = editorGenericSimpleBi
+  editor = editorGenericBi
 
 instance Renderable DataItemEditor where
   render = renderGeneric
