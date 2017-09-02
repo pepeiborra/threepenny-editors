@@ -26,12 +26,12 @@ main :: IO ()
 main = startGUI defaultConfig setup
 
 -- | A dual purpose data type that doubles as a value and as a widget depending on the type argument.
-data PersonF (usage :: Usage) = Person
-  { education           :: Field usage Education
-  , firstName, lastName :: Field usage String
-  , age                 :: Field usage (Maybe Int)
-  , brexiteer           :: Field usage Brexiteer
-  , status              :: Field usage LegalStatus
+data PersonF (purpose :: Purpose) = Person
+  { education           :: Field purpose Education
+  , firstName, lastName :: Field purpose String
+  , age                 :: Field purpose (Maybe Int)
+  , brexiteer           :: Field purpose Brexiteer
+  , status              :: Field purpose LegalStatus
   }
   deriving (Generic)
 

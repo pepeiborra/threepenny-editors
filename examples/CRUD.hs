@@ -127,8 +127,8 @@ lookup key   (Database _      db) = Map.lookup key db
 {-----------------------------------------------------------------------------
     Data items that are stored in the data base
 ------------------------------------------------------------------------------}
-data DataItemDual (usage :: Usage) = DataItem
-  { firstName, lastName :: Field usage String
+data DataItemDual (purpose :: Purpose) = DataItem
+  { firstName, lastName :: Field purpose String
   }
 
 type DataItem = DataItemDual Data

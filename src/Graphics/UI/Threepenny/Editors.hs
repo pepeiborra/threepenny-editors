@@ -31,8 +31,6 @@ module Graphics.UI.Threepenny.Editors
   , dimapE
   , Editable(..)
   , EditorWidgetFor(..)
-  , Field
-  , Usage(..)
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
@@ -52,6 +50,8 @@ module Graphics.UI.Threepenny.Editors
   , editorSelection
   , editorSum
   , editorJust
+  , Field
+  , Purpose(..)
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
@@ -121,19 +121,19 @@ someEditor = withSomeWidget editor
 data EditorWidgetFor a where
   EditorWidgetFor :: Editable a => EditorWidget a -> EditorWidgetFor a
 
--- | 'Usage' is a kind for type level 'Field's
-data Usage = Data | Edit
+-- | 'Purpose' is a kind for type level 'Field's
+data Purpose = Data | Edit
 
--- | Type level fields. Use this helper to define EditorWidget types. Example:
+-- | Type level fields. Used to define dual purpose datatypes, example:
 --
--- > data PersonF (usage :: Usage) = Person
--- >   { education           :: Field usage Education
--- >   , firstName, lastName :: Field usage String
--- >   , age                 :: Field usage (Maybe Int)
+-- > data PersonF (purpose :: Purpose) = Person
+-- >   { education           :: Field purpose Education
+-- >   , firstName, lastName :: Field purpose String
+-- >   , age                 :: Field purpose (Maybe Int)
 --
 -- > type Person = PersonF Data
 -- > type PersonEditor = PersonF Edit
-type family Field (usage :: Usage) a where
+type family Field (purpose :: Purpose) a where
   Field 'Data  a = a
   Field 'Edit a = EditorWidget a
 
@@ -237,7 +237,7 @@ getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
 --   /e.g./ for the datatype
 --
 -- @
---  data Person usage = Person { firstName, lastName :: Field usage String }
+--  data Person purpose = Person { firstName, lastName :: Field purpose String }
 -- @
 --
 -- @ instance Editable (Person Data) where
