@@ -8,6 +8,7 @@
 {-# LANGUAGE ViewPatterns         #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 
+-- | A custom layout engine and combinators.
 module Graphics.UI.Threepenny.Editors.Layout
   (
   -- * Renderableable widgets
@@ -43,12 +44,13 @@ import           Graphics.UI.Threepenny.Core     as UI
 import           Graphics.UI.Threepenny.Elements
 import           Graphics.UI.Threepenny.Widgets
 
--- | Closely related to 'Widget', this class represents types that can be rendered to an 'Element'
+-- | Closely related to 'Widget', this class represents types that can be rendered to an 'Element', either directly or via 'Layout'.
 class Renderable w where
   render    :: w -> UI Element
   getLayout :: w -> Layout
   render = runLayout . getLayout
   getLayout = Cell . Just . render
+  {-# MINIMAL render | getLayout #-}
 
 instance Renderable Element where
   render = return
@@ -110,7 +112,7 @@ runLayout :: Layout -> UI Element
 runLayout (Grid rows) = grid (toList $ fmap (fmap runLayout . toList) rows)
 runLayout (Cell el)   = fromMaybe new el
 
--- | A layout monoid that places everything in a single column
+-- | A monoidal layout builder that places everything in a single column
 newtype Vertical = Vertical { getVertical :: Layout}
 
 vertical :: Renderable w => w -> Vertical
@@ -123,7 +125,7 @@ instance Monoid Vertical where
 instance Renderable Vertical where
   getLayout = getVertical
 
--- | A layout monoid that places everything in a single row
+-- | A monoidal layout builder that places everything in a single row
 newtype Horizontal = Horizontal { getHorizontal :: Layout}
 
 horizontal :: Renderable w => w -> Horizontal
@@ -136,7 +138,7 @@ instance Monoid Horizontal where
 instance Renderable Horizontal where
   getLayout = getHorizontal
 
--- | A layout monoid that lays elements in columns
+-- | A monoidal layout builder that lays elements in columns
 data Columns
   = Next  Layout -- ^ Continue in the same column
   | Break Layout -- ^ Continue in the next column

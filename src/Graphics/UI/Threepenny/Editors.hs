@@ -1,11 +1,11 @@
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE PatternSynonyms            #-}
+{-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
@@ -16,32 +16,65 @@
 {-# OPTIONS_GHC -Wno-orphans            #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-duplicate-exports  #-}
+{- | Types and combinators to create widgets for editing algebraic datatypes.
 
+   This module builds around the idea that editors usually have the same shape
+   as the data they are editing. We can immediately take advantage of this to
+   automatically build editors from datatype definitions.
+
+> data Person = Person { first, last, email :: String, age :: Int }
+>
+> deriveGeneric ''Person
+>
+> instance Editable Person
+
+   This produces a generic editor with a fixed vertical layout. To customize
+   the layout, we can use a explicit instance and monoidal layout builders:
+
+> instance Editable Person where
+>   editor = Person <$> fieldLayout Next  "First:" first editor
+>                   <*> fieldLayout Break "Last:"  last  editor
+>                   <*> fieldLayout Next  "Email:" email editor
+>                   <*> fieldLayout Next  "Age:"   age   editor
+
+   We can take this a step further by repurposing datatype definitions to
+   represent not only data, but also the collections of editors that are composed
+   to build the datatype editor. This is done via the 'Purpose' type
+   and the 'Field' type family.
+
+> data Person purpose =
+>   Person { first, last, email :: Field purpose String
+>          , age                :: Field purpose Int}
+>
+> deriveGeneric ''Person
+>
+> instance Editable (Person Data) where
+>   type EditorWidget (Person Data) = Person Edit
+>   editor = editorGenericBi
+>
+> instance Renderable (Person Edit) where
+>   render = renderGeneric
+
+'renderGeneric' will produce a vertical layout. A direct implementation would use standard threepenny layout combinators since the fields of @Person Edit@ are instances of 'Widget':
+
+> instance Renderable (Person Edit) where
+>   render Person{..} =
+>     grid [[string "First:", element first, string "Email:", element email]
+>          ,[string "Last:",  element last, string "Age:", element age]
+>          ]
+
+-}
 module Graphics.UI.Threepenny.Editors
-  ( -- * Widgets
-    GenericWidget(..)
-  , edited
-  , contents
-    -- * Editors
-  , Editor(Horizontally, horizontally, Vertically, vertically)
-  , someEditor
-  , create
-  , edit
-  , lmapE
-  , dimapE
+  ( -- * Editors
+    Editor(..)
   , Editable(..)
-  , EditorWidgetFor(..)
+  , dimapE
     -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
   , fieldLayout
-  , pattern Horizontally
-  , pattern Vertically
-    -- ** Editor layout
-  , withLayout
   , withSomeWidget
-  , construct
     -- ** Editor constructors
   , editorUnit
   , editorIdentity
@@ -50,35 +83,28 @@ module Graphics.UI.Threepenny.Editors
   , editorSelection
   , editorSum
   , editorJust
+  , someEditor
+    -- ** Dual purpose datatypes
   , Field
   , Purpose(..)
     -- ** Generic editors
   , editorGeneric
   , editorGenericSimple
   , editorGenericBi
+    -- * Widgets
+  , GenericWidget(..)
+  , edited
+  , contents
     -- * Layouts
   , Layout
-  , above
-  , beside
   -- ** Monoidal layouts
   , Vertical(..)
   , Horizontal(..)
   , Columns(..)
-  -- ** Type level layouts
-  , type (|*|)(..)
-  , type (-*-)(..)
   -- ** Custom layout definition
   , Renderable(..)
   , renderGeneric
   , getLayoutGeneric
-  -- * Validation
-  , Validable(..)
-  , ValidationResult
-  , ok
-  , fromWarnings
-  , getWarnings
-  , isValid
-  , updateIfValid
   ) where
 
 import           Data.Biapplicative
@@ -87,7 +113,7 @@ import           Data.Default
 import           Data.Functor.Compose
 import           Data.Functor.Identity
 import           Data.Maybe
-import qualified Data.Sequence as Seq
+import qualified Data.Sequence                         as Seq
 import           Generics.SOP                          hiding (Compose)
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Widgets
@@ -95,16 +121,37 @@ import           Text.Casing
 
 import           Graphics.UI.Threepenny.Editors.Layout
 import           Graphics.UI.Threepenny.Editors.Types
-import           Graphics.UI.Threepenny.Editors.Validation
 
 -- | The class of 'Editable' datatypes.
---   .
---   Define your own instance by using the 'Applicative' composition operators or
---   derive it via 'Generics.SOP'.
+--
+--   There are several ways to create an instance, from easiest to most advanced:
+--
+--   * Automatically (via 'SOP'), producing an editor with a vertical layout:
+--
+-- > instance Editable MyDatatype
+--
+--   * Using the applicative layout combinators:
+--
+-- >  instance Editable MyDatatype where
+-- >    editor = MyDatatype <$> field "Name:" name editor
+-- >                        -*- field "Age:"  age  editor
+--
+--   * Using a monoidal layout builder:
+--
+-- >  instance Editable MyDatatype where
+-- >    editor = MyDatatype <$> fieldLayout Break "Name:" name editor
+-- >                        <*> fieldLayout Next  "Age:"  age  editor
+--
+--   * Using a dual purpose datatype, leaving the layout details for the 'Renderable' instance.
+--
+-- > instance Editable (MyDatatype Data) where
+-- >   type EditorWidget (MyDatatype Data) = MyDatatype Edit
+-- >   editor = editorGenericBi
+--
 class Renderable (EditorWidget a) => Editable a where
+  -- | The widget type that realizes the editor. Defaults to 'Layout' and only needs to be manually defined when using custom renderables.
   type family EditorWidget a
   type EditorWidget a = Layout
-  -- | The editor factory
   editor :: Editor a (EditorWidget a) a
   default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)), EditorWidget a ~ Layout) => Editor a (EditorWidget a) a
   editor = editorGeneric
@@ -162,9 +209,15 @@ instance Editable Double where
   type EditorWidget Double = TextEntry
   editor = editorJust editor
 
-instance (Editable a, Editable b) => Editable (a,b) where
-  type EditorWidget (a,b) = EditorWidget a |*| EditorWidget b
-  editor = bipure (:|*|) (,) <<*>> lmapE fst editor <<*>> lmapE snd editor
+instance (Editable a, Editable b) => Editable (a |*| b) where
+  type EditorWidget (a |*| b) = EditorWidget a |*| EditorWidget b
+  editor = bipure (:|*|) (:|*|) <<*>> dimapE (\(x :|*| _) -> x) id editor
+                                <<*>> dimapE (\(_ :|*| y) -> y) id editor
+
+instance (Editable a, Editable b) => Editable (a -*- b) where
+  type EditorWidget (a -*- b) = EditorWidget a -*- EditorWidget b
+  editor = bipure (:-*-) (:-*-) <<*>> dimapE (\(x :-*- _) -> x) id editor
+                                <<*>> dimapE (\(_ :-*- y) -> y) id editor
 
 instance Editable a => Editable (Identity a) where
   type EditorWidget (Identity a) = EditorWidget a
@@ -218,8 +271,8 @@ getLayoutGeneric = getLayoutGeneric' (datatypeInfo (Proxy @ a)) . from
 
 getLayoutGeneric' :: (All Renderable xs) => DatatypeInfo '[xs] -> SOP I '[xs] -> [[Layout]]
 getLayoutGeneric' (ADT _ _ (c :* Nil)) (SOP (Z x)) = getLayoutConstructor c x
-getLayoutGeneric' (Newtype _ _ c) (SOP (Z x)) = getLayoutConstructor c x
-getLayoutGeneric' _ _ = error "unreachable"
+getLayoutGeneric' (Newtype _ _ c) (SOP (Z x))      = getLayoutConstructor c x
+getLayoutGeneric' _ _                              = error "unreachable"
 
 getLayoutConstructor :: All Renderable xs => ConstructorInfo xs -> NP I xs -> [[Layout]]
 getLayoutConstructor (Record _ fields) renders = hcollapse $ hcliftA2 (Proxy @ Renderable) (\f (I x) -> K $ getLayoutField f x) fields renders
@@ -252,7 +305,7 @@ getLayoutField (FieldInfo name) x =  [getLayout(toFieldLabel name), getLayout x]
 -- >  editor = bipure DataItem DataItem
 -- >              <<*>> edit firstName editor
 -- >              <<*>> edit lastName editor
--- 
+--
 editorGenericBi
   :: forall xs typ .
      ( Generic (typ 'Data)
@@ -273,7 +326,7 @@ constructorEditorBi' :: (SListI xs, All Editable xs) => Editor (NP I xs) (NP Edi
 constructorEditorBi' = sequence_NP2 fieldsEditorBi
 
 unpackWidgets :: NP EditorWidgetFor xs -> NP I (EditorWidgetsFor xs)
-unpackWidgets Nil = Nil
+unpackWidgets Nil                       = Nil
 unpackWidgets (EditorWidgetFor e :* xs) = I e :* unpackWidgets xs
 
 type family EditorWidgetsFor (xs :: [*]) where
@@ -284,7 +337,7 @@ fieldsEditorBi :: forall xs . All Editable xs => NP2 EditorWidgetFor (Editor (NP
 fieldsEditorBi = go id sList where
   go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP2 EditorWidgetFor (Editor (NP I xs)) ys
   go _ SNil = Nil2
-  go f SCons = bimap EditorWidgetFor id (edit (unI . hd . f) editor) :** go (tl . f) sList
+  go f SCons = bimap EditorWidgetFor id (dimapE (unI . hd . f) id editor) :** go (tl . f) sList
 
 -- A bifunctorial version of NP, used to sequence the applicative effects
 data NP2 :: (k -> *) -> (k -> k -> *) -> [k] -> * where
@@ -385,7 +438,7 @@ composeEditor (Fn inj) (Fn prj) = dimapE f (SOP . unK . inj)
 constructorEditorFor' :: (SListI xs, All Editable xs) => NP FieldInfo xs -> Editor (NP I xs) Layout (NP I xs)
 constructorEditorFor' fields = vertically $ hsequence $ hliftA Vertically $ fieldsEditor (hliftA (K . fieldName) fields)
 
--- | Tuple editor without fields
+-- Tuple editor without fields
 instance All Editable xs => Editable (NP I xs) where
   type EditorWidget (NP I xs) = Layout
   editor = horizontally $ hsequence $ hliftA Horizontally tupleEditor
@@ -394,7 +447,7 @@ tupleEditor :: forall xs . All Editable xs => NP (Editor (NP I xs) Layout) xs
 tupleEditor = go id sList where
   go :: forall ys. All Editable ys => (forall f . NP f xs -> NP f ys) -> SList ys -> NP (Editor (NP I xs) Layout) ys
   go _ SNil  = Nil
-  go f SCons = lmapE (unI . hd . f) someEditor :* go (tl . f) sList
+  go f SCons = dimapE (unI . hd . f) id someEditor :* go (tl . f) sList
 
 fieldsEditor :: forall xs . All Editable xs => NP (K String) xs -> NP (Editor (NP I xs) Layout) xs
 fieldsEditor = go id sList where

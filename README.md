@@ -4,60 +4,59 @@
 
 # threepenny-editors 
 
-## Introduction
-A library allowing to easily create threepenny-gui widgets for editing algebraic datatypes. 
-The library provides a set of editors for primitive and base types, a set of editor
-constructors for building editors for type constructors, and a set of combinators for
-composing editors - the `EditorFactory` type has an `Applicative`-like structure, with two
-combinators for horizontal and vertical composition, as well as
-a `Profunctor` instance. Don't worry if you are not familiar with these concepts as they are
-not required to perform simple tasks with this library.
-```
-newtype EditorFactory a b
-instance Profunctor EditorFactory
+## What
+Threepenny editors is a package for [threepenny-gui](http://hackage.haskell.org/package/threepenny-gui) which simplifies the construction of widgets for editing algebraic datatypes. An editor is a function `Behaviour outer -> (widget, Tidings inner)`. This library introduces an abstraction `Editor` around these functions which allows to compose them and treat them as first class entities, automating much of the boilerplate required for the definitions.
 
-(|*|) :: EditorFactory s (b->a) -> EditorFactory s b -> EditorFactory s a
-(-*-) :: EditorFactory s (b->a) -> EditorFactory s b -> EditorFactory s a
-```
+## How 
+1. `Editor outer widget inner` is an editor for a field `inner` inside a datatype `outer` implemented by a `widget`. 
+2. `widget` must be a `Renderable` type. The simplest `Renderable` type is an HTML `Element`. The next simplest `Renderable` is `Layout`.
+3. Once `create`d, an `Editor` yields a `GenericWidget` ready to be composed in a threepenny-gui app.
 
-The library also provides an `Editable` type class to associate a default `EditorFactoy` with
-a type:
-```
-class Editable a where
-  editor :: EditorFactory a a
-```
+Moreover, the `Editable` type class allows to define the default `Editor` for a type. Instances are provided for most primitive types.
+
+`Editor`s have `Biapplicative` and `Profunctor` instances. `Biapplicative` allows to compose editors on both their `widget` and their `inner` structure, whereas `Profunctor` allows to apply an `inner` editor to an `outer` datatype by focusing the editor into a substructure.
+
 
 ## Example
 
-Let's start with something simple, obtaining an `EditorFactory` for a newtype:
+Let's start with something simple, obtaining an `Editor` for a newtype:
+
 ```
 newtype Brexiteer = Brexiteer {unBrexiteer::Bool} deriving (Bounded, Enum, Eq, Read, Show, Ord, Generic)
 ```
 
 Since we already have an `Editable` instance for `Bool` that displays a checkbox, 
 we can obtain an `Editable` instance for `Brexiteer` for free:
+
 ```
 deriving instance Editable Brexiteer
 ```
 
-We can also wrap the existing `Bool` editor manually if we want to using `dimap`:
+We can also wrap the existing `Bool` editor manually if we want to using `dimapE`:
+
 ```
-editorBrexiteer = dimap unBrexiteer Brexiteer (editor :: Editor Bool Bool)
+editorBrexiteer = dimapE unBrexiteer Brexiteer (editor :: Editor Bool Element Bool)
 ```
+
 The type annotation above is only for illustrative purposes.
 
 Perhaps we are not happy with the default checkbox editor and want to have a different UI?
 The code below shows how to use a textbox instead:
+
 ```
-editorBrexiteerText :: EditorFactory Brexiteer Brexiteer
+editorBrexiteerText :: Editor (Maybe Brexiteer) TextEntry (Maybe Brexiteer)
 editorBrexiteerText = editorReadShow
 ```
+
 Or a combo box:
+
 ```
-editorBrexiteerChoice :: EditorFactoy Brexiteer Brexiteer
-editorBrexiteerChoice = editorEnumBounded
+editorBrexiteerChoice :: Editor (Maybe Brexiteer) (ListBox Brexiteer) (Maybe Brexiteer)
+editorBrexiteerChoice = editorEnumBounded (pure string)
 ```
+
 Let's move on to a union type now:
+
 ```
 data Education
   = Basic
@@ -65,11 +64,13 @@ data Education
   | Other_ String
   deriving (Eq, Read, Show)
 ```
+
 We could define an editor for `Education` with `editorReadShow`, but maybe we want a more user
 friendly UI that displays a choice of education type, and only in the `Other` case a free form
 text input. The `editorSum` combinator takes a list of choices and an editor for each choice:
+
 ```
-editorEducation :: EditorFactory Education Education
+editorEducation :: Editor Education Education
 editorEducation = do
     let selector x = case x of
             Other _ -> "Other"
@@ -77,7 +78,7 @@ editorEducation = do
     editorSum
       [ ("Basic", const Basic <$> editorUnit)
       , ("Intermediate", const Intermediate <$> editorUnit)
-      , ("Other", dimap (fromMaybe "" . getOther) Other editor)
+      , ("Other", dimapE (fromMaybe "" . getOther) Other someEditor)
       ]
       selector
 
@@ -87,23 +88,23 @@ getOther _         = Nothing
 ```
 
 Or more simply, we could just use `editorGeneric` to achieve the same effect, provided that
-`Education` has got SOP.Generic and SOP.HasDatatypeInfo instances
-```
-import           GHC.Generics
-import qualified Generics.SOP as SOP
+`Education` has a `Generic` instance:
 
-deriving instance Generic Education
-instance SOP.HasDatatypeInfo Education
-instance SOP.Generic Education
+```
+import Generics.SOP.TH
+
+derivingGeneric ''Education
 
 -- Derive an Editable instance that uses editorGeneric
 instance Editable Education
 
 -- Explicitly call editorGeneric
-editorEducation :: EditorFactory Education Education
+editorEducation :: Editor Education Layout Education
 editorEducation = editorGeneric
 ```
-Moving on to a record type, let's look at how to compose multiple editors together:
+
+Moving on, let's look at how to compose multiple editors together:
+
 ```
 data Person = Person
   { education           :: Education
@@ -114,20 +115,25 @@ data Person = Person
   }
   deriving (Generic, Show)
 ```
+
 The `field` combinator encapsulates the common pattern of pairing a label and a base editor
 to build the editor for a record field:
+
 ```
-field :: String -> (out -> inn) -> EditorFactory inn a -> EditorFactory out a
-field name f e = string name *| lmap f e
+field :: String -> (out -> inn) -> Editor inn a -> Editor out a
+field name f e = string name *| dimap f id e
 ```
+
 Where `*|` prepends a UI Element to an Editor horizontally: 
 ```
-(*|) :: UI Element -> EditorFactory s a -> EditorFactory s a
+(*|) :: UI Element -> Editor s w a -> Editor s w a
 ```
+
 Armed with `field` and applicative composition (vertical '-*-' and horizontal '|*|'),
 we define the editor for `Person` almost mechanically:
+
 ```
-editorPerson :: EditorFactory Person Person
+editorPerson :: Editor Person Person
 editorPerson =
     (\fn ln a e ls b -> Person e fn ln a b ls)
       <$> field "First:"     firstName editor
@@ -137,7 +143,65 @@ editorPerson =
       -*- field "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
       -*- field "Brexiter"   brexiteer editor
 ```
+
 The only bit of ingenuity in the code above is the deliberate reordering of the fields.
 
 It is also possible to generically derive the editor for person in the same way as before, in which
 case the labels are taken from the field names, and the order from the declaration order.
+
+In addition to the simple layout combinators, `threepenny-editors` supports the more flexible monoidal layout builders.
+An example such builder allows to lay out editors in multiple 'Columns':
+
+```
+{-# LANGUAGE ApplicativeDo              #-}
+editorPersonColumns :: Editor Person Columns Person
+editorPersonColumns = do
+      firstName <- fieldLayout Next "First:"     firstName editor
+      lastName  <- fieldLayout Next "Last:"      lastName editor
+      age       <- fieldLayout Next "Age:"       age editor
+      education <- fieldLayout Break "Education:" education editorEducation
+      status    <- fieldLayout Next "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      brexiteer <- fieldLayout Next "Brexiter"   brexiteer editor
+      return Person{..}
+```
+
+All the editors defined so far have one thing in common: they have the same shape as the datatype they are editing. 
+We can take advantage of this to define datatypes with a dual purpose, which can be used to either hold data, or hold widgets:
+
+```
+-- | A dual purpose data type that doubles as a value and as a widget depending on the type argument.
+data PersonF (purpose :: Purpose) = Person
+  { education           :: Field purpose Education
+  , firstName, lastName :: Field purpose String
+  , age                 :: Field purpose (Maybe Int)
+  , brexiteer           :: Field purpose Brexiteer
+  , status              :: Field purpose LegalStatus
+  }
+
+type Person = PersonF Data
+type PersonEditor = PersonF Edit
+```
+The advantage of this is that the field widgets are bound to names now, and can be manipulated directly to e.g. set attributes on them.
+To define a `PersonEditor`, we make use of the `Editor` `Biapplicative` instance:
+
+```
+personEditor =
+    bipure Person Person
+      <<*>> edit education editorEducation
+      <<*>> edit firstName editor
+      <<*>> edit lastName  editor
+      <<*>> edit age       editor
+      <<*>> edit brexiteer editor
+      <<*>> edit status    (editorJust $ editorSelection ...)
+```
+Now the actual layout is define separately from the editor composition, 
+using standard threepenny-gui primitives:
+
+```
+instance Renderable PersonEditor where
+  render Person{..} = grid
+   [ [string "First:", element firstName, string "Age:", element age]
+   , [string "Last:", element lastName, string "Brexiteer:", element brexiteer]
+   , [string "Status:", element status, string "Education:", element education]
+   ]
+```

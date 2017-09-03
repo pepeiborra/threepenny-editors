@@ -16,20 +16,17 @@ module Graphics.UI.Threepenny.Editors.Types
   , contents
   , widgetControl
   , widgetTidings
-  , liftElement
+  -- * Editors
   , Editor(.., Horizontally, horizontally, Vertically, vertically)
+  , liftElement
   , dimapE
-  , lmapE
   , applyE
-    -- ** GenericWidget composition
+    -- ** Editor composition
   , (|*|), (|*), (*|)
   , (-*-), (-*), (*-)
   , field
   , fieldLayout
-  , edit
-  , pattern Horizontally
-  , pattern Vertically
-    -- ** GenericWidget constructors
+    -- ** Editor constructors
   , editorUnit
   , editorIdentity
   , editorString
@@ -39,9 +36,6 @@ module Graphics.UI.Threepenny.Editors.Types
   , editorSelection
   , editorSum
   , editorJust
-    -- ** GenericWidget layout
-  , withLayout
-  , construct
   ) where
 
 import           Data.Biapplicative
@@ -58,10 +52,9 @@ import           Graphics.UI.Threepenny.Events
 import           Graphics.UI.Threepenny.Widgets
 import           Text.Read
 
--- | A widget for editing values of type @a@.
 data GenericWidget control a = GenericWidget
-  { widgetTidings :: Tidings a
-  , widgetControl :: control
+  { widgetTidings :: Tidings a -- ^ The dynamic contents of the widget.
+  , widgetControl :: control   -- ^ The actual widget.
   }
   deriving Functor
 
@@ -86,23 +79,19 @@ instance Renderable el => Renderable (GenericWidget el a) where
 renderEditor :: Renderable w => GenericWidget w a -> UI (GenericWidget Element a)
 renderEditor = traverseControl render
 
--- | A widget @el@ for editing @b@ values while displaying @a@ values.
---   For obvious reasons, @a@ and @b@ are usually the same type, except while composing editors.
---   All the three type arguments are functorial, but @a@ is contravariant.
---   'Editor' is a 'Biapplicative' functor on @el@ and @b@, and a 'Profunctor' on @a@ and @b@.
+-- | An editor for values of type @inner@ inside a datatype @outer@ realized by a @widget@.
 --
---   Editors compose using the Applicative interface when @el@ is monoidal
---   or more generally with the Biapplicative interface. In both cases the
---   Profunctor 'lmap' is used to select the value to display.
+--   All the three type arguments are functorial, but @outer@ is contravariant, so @Editor@ is a 'Biapplicative' functor and a 'Profunctor' (via 'dimapE').
 --
---   For an example of the Applicative interface, let's assemble the editor for a tuple of values:
+--  'Biapplicative' allows to compose editors on both their @widget@ and @inner@ structure. When @widget@ is monoidal, widget composition is implicit and 'Applicative' suffices.
 --
---   > editorTuple = (,) <$> lmap fst editable <*> lmap snd editable
+--  'Profunctor' allows to apply an @inner@ editor to an @outer@ datatype.
+--
+--   Once 'create'd, an 'Editor' yields a tuple of an @widget@ and a @Tidings inner@ which can be integrated in a threepenny app.
+--
 
-newtype Editor a el b = Editor {
-  -- | Create an editor to display the argument.
-  --   User edits are fed back via the 'edited' 'Event'.
-  create :: Behavior a -> UI (GenericWidget el b)
+newtype Editor outer widget inner = Editor {
+  create :: Behavior outer -> UI (GenericWidget widget inner)
   }
 
 -- | Lift an HTML element into a vacuous editor.
@@ -116,21 +105,6 @@ dimapE :: (a' -> a) -> (b -> b') -> Editor a el b -> Editor a' el b'
 dimapE g h (Editor f) = Editor $ dimap (fmap g) (fmapUIGW h) f
   where
     fmapUIGW = coerce (fmap @ (Compose UI _))
-
--- | Applies a function over the input
-lmapE :: (a' -> a) -> Editor a el b -> Editor a' el b
-lmapE f = dimapE f id
-
--- | Use when composing Biapplicative editors to focus on a field.
---
--- > personEditor :: Editor Person PersonEditor Person
--- > personEditor =
--- >     bipure Person Person
--- >       <<*>> edit education editor
--- >       <<*>> edit firstName editor
--- >       <<*>> edit lastName  editor
-edit :: (a' -> a) -> Editor a el b -> Editor a' el b
-edit = lmapE
 
 applyE :: (el1 -> el2 -> el) -> Editor in_ el1 (a -> b) -> Editor in_ el2 a -> Editor in_ el b
 applyE combineElements a b = Editor $ \s -> do
@@ -185,10 +159,6 @@ infixl 5 |*, *|, -*, *-
 withLayout :: (layout -> layout') -> Editor a layout b -> Editor a layout' b
 withLayout f = bimap f id
 
--- | Construct a concrete 'Layout'. Useful when combining heterogeneours layout builders.
-construct :: Renderable m => Editor a m b -> Editor a Layout b
-construct = withLayout getLayout
-
 -- | Left-right editor composition
 (|*|) :: Editor s Layout (b -> a) -> Editor s Layout b -> Editor s Layout a
 a |*| b = withLayout getHorizontal $ withLayout Horizontal a <*> withLayout Horizontal b
@@ -213,13 +183,13 @@ e *- a = withLayout getVertical $ liftElement(return $ vertical e) *> withLayout
 (-*) :: Editor s Layout a -> UI Element -> Editor s Layout a
 a -* e = withLayout getVertical $ withLayout Vertical a <* liftElement(return $ vertical e)
 
--- | A helper that arranges a label with the field name
---   and the editor horizontally. This version takes a Layout builder as well.
+-- | A helper that arranges a label and an editor horizontally,
+--   wrapped in the given monoidal layout builder.
 fieldLayout :: (Renderable m, Renderable m') => (Layout -> m') -> String -> (out -> inn) -> Editor inn m a -> Editor out m' a
 fieldLayout l name f e = withLayout l (string name *| first getLayout (dimapE f id e))
 
--- | A helper that arranges a label with the field name
---   and the editor horizontally.
+-- | A helper that arranges a label
+--   and an editor horizontally.
 field :: Renderable m => String -> (out -> inn) -> Editor inn m a -> Editor out Layout a
 field name f e = string name *| first getLayout (dimapE f id e)
 

@@ -128,8 +128,7 @@ lookup key   (Database _      db) = Map.lookup key db
     Data items that are stored in the data base
 ------------------------------------------------------------------------------}
 data DataItemDual (purpose :: Purpose) = DataItem
-  { firstName, lastName :: Field purpose String
-  }
+  { firstName, lastName :: Field purpose String }
 
 type DataItem = DataItemDual Data
 type DataItemEditor = DataItemDual Edit

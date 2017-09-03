@@ -7,20 +7,24 @@
 {-# LANGUAGE RecursiveDo                #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE StandaloneDeriving         #-}
+{-# LANGUAGE TemplateHaskell            #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE UndecidableInstances       #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 module Person (main) where
 import           Control.Monad
-import           Data.Biapplicative
 import           Data.Default
 import           Data.Maybe
-import qualified Generics.SOP                    as SOP
-import           GHC.Generics                    (Generic)
+import qualified Generics.SOP                              as SOP
+import           Generics.SOP.TH
+import           GHC.Generics                              (Generic)
 import           Graphics.UI.Threepenny.Core
 import           Graphics.UI.Threepenny.Editors
+import           Graphics.UI.Threepenny.Editors.Layout     (above, beside)
+import           Graphics.UI.Threepenny.Editors.Validation
 import           Graphics.UI.Threepenny.Elements
-import           Prelude                         hiding (span)
+import           Prelude                                   hiding (span)
 
 main :: IO ()
 main = startGUI defaultConfig setup
@@ -76,8 +80,8 @@ editorEducation = do
             Other _ -> "Other"
             _       -> show x
     editorSum beside
-      [ ("Basic", const Basic <$> withSomeWidget editorUnit)
-      , ("Intermediate", const Intermediate <$> withSomeWidget editorUnit)
+      [ ("Basic", const Basic <$> editor)
+      , ("Intermediate", const Intermediate <$> editor)
       , ("Other", dimapE (fromMaybe "" . getOther) Other someEditor)
       ]
       selector
@@ -96,8 +100,6 @@ instance SOP.Generic Brexiteer
 deriving instance Show Person
 
 instance Editable Person
-instance SOP.HasDatatypeInfo Person
-instance SOP.Generic Person
 instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
 -- | An editor for 'Person' values that uses the 'Columns' layout builder
@@ -107,7 +109,7 @@ editorPersonColumns = do
       lastName  <- fieldLayout Next "Last:"      lastName editor
       age       <- fieldLayout Next "Age:"       age editor
       education <- fieldLayout Break "Education:" education editorEducation
-      status    <- fieldLayout Next "Status"     status (withSomeWidget $ editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
+      status    <- fieldLayout Next "Status"     status (editorJust $ editorSelection (pure [minBound..]) (pure (string.show)))
       brexiteer <- fieldLayout Next "Brexiter"   brexiteer editor
       return Person{..}
 
@@ -115,14 +117,7 @@ editorPersonColumns = do
 -- | A editor for 'Person' values with a fully fledged Widget type.
 --   The UI and layout are defined in the 'Renderable' instance for the widget.
 personEditor :: Editor Person PersonEditor Person
-personEditor =
-    bipure Person Person
-      <<*>> edit education editor
-      <<*>> edit firstName editor
-      <<*>> edit lastName  editor
-      <<*>> edit age       editor
-      <<*>> edit brexiteer editor
-      <<*>> edit status    editor
+personEditor = editorGenericBi
 
 instance Renderable PersonEditor where
   getLayout Person{..} =
@@ -168,3 +163,5 @@ setup w = void $ mdo
     , [render person3e]
     , [hr]
     ]]
+
+deriveGeneric ''PersonF
