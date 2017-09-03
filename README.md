@@ -4,7 +4,7 @@
 
 # threepenny-editors 
 
-## What
+## Description
 Threepenny-editors is a library for constructing of widgets for editing algebraic datatypes in [threepenny-gui](http://hackage.haskell.org/package/threepenny-gui). An editor factory is a function `Behaviour outer -> (widget, Tidings inner)`. The library introduces an abstraction `Editor` around these functions which allows treat them as first class entities, improving compositionality and applicability. Moreover, the generic functions provided help automating much of the boilerplate required for the definitions.
 
 More concretely:
