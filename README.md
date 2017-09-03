@@ -18,9 +18,8 @@ More concretely:
 
 The library provides generic functions (using [generics-sop](http://hackage.haskell.org/package/generics-sop)) to generate editors and renderables:
 
-- `editorGenericSimple` - A generic editor for single constructor datatypes where all the fields are `Editable` that produces a vertical layout.
-- `editorGeneric` - As above for union types. Requires `Default`.
-- `editorGenericBi` - A generic editor for single constructor dual purpose datatypes where all the fields are `Editable`.
+- `editorGeneric` - A generic editor for standard datatypes where all the fields are `Editable` that produces a vertical layout.
+- `editorGenericBi` - A generic editor for dual purpose datatypes where all the fields are `Editable`.
 - `renderGeneric` - A generic render for single constructor dual purpose datatypes that produces a vertical layout.
 
 A dual purpose datatype is a type constructor where the type argument has kind `Purpose`, with two possible instantiations: `Data` or `Edit`. Instantiating with `Data` yields a container of data, i.e. a normal datatype, whereas instantiating with `Edit` yields a container of widgets. This allows to generate data and editor from the same definition when the shape of the editor matches the shape of the data.
@@ -75,35 +74,14 @@ data Education
 
 We could define an editor with `editorReadShow`, but maybe we want a more user
 friendly UI that displays a choice, and only when `Other` is selected displays a free form
-text input. The `editorSum` combinator takes a list of choices and an editor for each choice:
-
-```
-editorEducation :: Editor Education Education
-editorEducation = do
-    let selector x = case x of
-            Other _ -> "Other"
-            _       -> show x
-    editorSum
-      [ ("Basic", const Basic <$> editorUnit)
-      , ("Intermediate", const Intermediate <$> editorUnit)
-      , ("Other", dimapE (fromMaybe "" . getOther) Other someEditor)
-      ]
-      selector
-
-getOther :: Education -> Maybe String
-getOther (Other s) = Just s
-getOther _         = Nothing
-```
-
-Or more simply, we could just use `editorGeneric` to achieve the same effect, provided that
-`Education` has `Generic` and `Default` instances:
+text input. This can be achieved with the `editorSum` combinator, which takes a list of choices
+and an editor for each choice. While `editorSum` is easy enough to use,
+`editorGeneric` removes away all the boilerplate for us:
 
 ```
 import Generics.SOP.TH
 
 derivingGeneric ''Education
-
-instance Default Education where default = Basic
 
 -- Derive an Editable instance that uses editorGeneric
 instance Editable Education
@@ -248,7 +226,7 @@ instance Editable Education
 
 newtype Brexiteer = Brexiteer Bool
 
-instance Editable Brexiteer where editor = editorGenericSimple
+instance Editable Brexiteer where editor = editorGeneric
 
 data LegalStatus
   = Single

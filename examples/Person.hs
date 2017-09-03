@@ -14,7 +14,6 @@
 {-# OPTIONS_GHC -Wno-unticked-promoted-constructors #-}
 module Person (main) where
 import           Control.Monad
-import           Data.Default
 import           Data.Maybe
 import qualified Generics.SOP                              as SOP
 import           Generics.SOP.TH
@@ -42,6 +41,9 @@ data PersonF (purpose :: Purpose) = Person
 type Person = PersonF Data
 type PersonEditor = PersonF Edit
 
+defPerson :: Person
+defPerson = Person Basic "First" "Last" Nothing (Brexiteer False) Single
+
 instance Validable Person where
   validate Person{..} = fromWarnings $
     [ "First name cannot be null" | null firstName ] ++
@@ -58,15 +60,12 @@ data LegalStatus
 instance Editable LegalStatus
 instance SOP.HasDatatypeInfo LegalStatus
 instance SOP.Generic LegalStatus
-instance Default LegalStatus where def = Single
 
 data Education
   = Basic
   | Intermediate
   | Other String
   deriving (Eq, Ord, Read, Show, Generic)
-
-instance Default Education where def = Basic
 
 getOther :: Education -> Maybe String
 getOther (Other s) = Just s
@@ -92,15 +91,13 @@ instance SOP.Generic Education
 
 newtype Brexiteer = Brexiteer Bool deriving (Eq, Show, Ord, Generic)
 
-instance Default Brexiteer where def = Brexiteer False
-instance Editable Brexiteer where editor = editorGenericSimple
+instance Editable Brexiteer where editor = editorGeneric
 instance SOP.HasDatatypeInfo Brexiteer
 instance SOP.Generic Brexiteer
 
 deriving instance Show Person
 
 instance Editable Person
-instance Default Person where def = Person Basic "First" "Last" (Just 18) def def
 
 -- | An editor for 'Person' values that uses the 'Columns' layout builder
 editorPersonColumns :: Editor Person Columns Person
@@ -141,7 +138,7 @@ setup w = void $ mdo
   person3e <- create personEditor person1B
   -- When using a biapplicative editor, we can set the attributes of the field editors after creation.
   _ <- element (firstName (widgetControl person3e)) # set style [("background-color", "Blue")]
-  person1B <- accumB def (updateIfValid . head <$> unions
+  person1B <- accumB defPerson (updateIfValid . head <$> unions
                             [ edited person1C
                             , edited person2
                             , edited person3e

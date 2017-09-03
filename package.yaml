@@ -31,7 +31,6 @@ dependencies:
     - base >= 4.7 && < 5
     - bifunctors
     - containers
-    - data-default
     - generics-sop
     - profunctors
     - threepenny-gui > 0.7

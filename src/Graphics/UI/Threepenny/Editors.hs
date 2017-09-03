@@ -12,6 +12,8 @@
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
+{-# LANGUAGE UndecidableInstances       #-}
+{-# LANGUAGE UndecidableSuperClasses    #-}
 {-# LANGUAGE ViewPatterns               #-}
 {-# OPTIONS_GHC -Wno-orphans            #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
@@ -84,12 +86,12 @@ module Graphics.UI.Threepenny.Editors
   , editorSum
   , editorJust
   , someEditor
+  , withSomeWidget
     -- ** Dual purpose datatypes
   , Field
   , Purpose(..)
     -- ** Generic editors
   , editorGeneric
-  , editorGenericSimple
   , editorGenericBi
     -- * Widgets
   , GenericWidget(..)
@@ -109,12 +111,12 @@ module Graphics.UI.Threepenny.Editors
 
 import           Data.Biapplicative
 import           Data.Char
-import           Data.Default
 import           Data.Functor.Compose
 import           Data.Functor.Identity
 import           Data.Maybe
 import qualified Data.Sequence                         as Seq
 import           Generics.SOP                          hiding (Compose)
+import           Generics.SOP.Constraint               hiding (Compose)
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Widgets
 import           Text.Casing
@@ -153,7 +155,7 @@ class Renderable (EditorWidget a) => Editable a where
   type family EditorWidget a
   type EditorWidget a = Layout
   editor :: Editor a (EditorWidget a) a
-  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)), EditorWidget a ~ Layout) => Editor a (EditorWidget a) a
+  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All NonEmpty) (Code a)), EditorWidget a ~ Layout) => Editor a (EditorWidget a) a
   editor = editorGeneric
 
 -- | Conceal the widget type of some 'Editor'
@@ -315,7 +317,7 @@ editorGenericBi
      , Code (typ 'Edit) ~ '[EditorWidgetsFor xs]
      )
   => Editor (typ 'Data) (typ 'Edit) (typ 'Data)
-editorGenericBi = dimapE from to $ bimap to id $ constructorEditorBi
+editorGenericBi = dimapE from to $ bimap to id constructorEditorBi
 
 constructorEditorBi
   :: forall xs . (All Editable xs)
@@ -351,23 +353,6 @@ sequence_NP2 (x :** xs) = bipure (:*) (\x xx -> I x :* xx) <<*>> x <<*>> sequenc
 {----------------------------------------------
   Generic derivations for Applicative Editables
 -----------------------------------------------}
--- | A generic 'editor' derivation for data types with a single constructor.
---   Doesn't require a 'Default' instance.
---
---   The datatype arguments are layered in vertical fashion and labelled with
---   field names if available.
-editorGenericSimple
-  :: forall a xs.
-     (Generic a, HasDatatypeInfo a, All Editable xs, Code a ~ '[xs])
-  => Editor a Layout a
-editorGenericSimple = dimapE from to $ editorGenericSimple' (datatypeInfo(Proxy @ a))
-
-editorGenericSimple'
-  :: forall xs.
-     (All Editable xs)
-  => DatatypeInfo '[xs] -> Editor (SOP I '[xs]) Layout (SOP I '[xs])
-editorGenericSimple' (ADT _ _ (c :* Nil)) = constructorEditorFor c
-editorGenericSimple' (Newtype _ _ c)      = constructorEditorFor c
 
 constructorEditorFor
   :: (All Editable xs)
@@ -378,19 +363,18 @@ constructorEditorFor (Constructor _) = dimapE (unZ . unSOP) (SOP . Z) someEditor
 constructorEditorFor Infix{} = dimapE (unZ . unSOP) (SOP . Z) someEditor
 
 -- | A generic 'editor' derivation for SOP types.
---   The 'Default' instance is only used when there is more than one constructor.
 --
 --   The datatype arguments are layered in vertical fashion and labelled with
 --   field names if available.
 editorGeneric
   :: forall a .
-     (Generic a, HasDatatypeInfo a, (All (All Editable `And` All Default) (Code a)))
+     (Generic a, HasDatatypeInfo a, (All (All Editable `And` All NonEmpty) (Code a)))
   => Editor a Layout a
 editorGeneric = dimapE from to $ editorGeneric' (datatypeInfo(Proxy @ a))
 
 editorGeneric'
   :: forall xx.
-     (All (All Editable `And` All Default) xx)
+     (All (All Editable `And` All NonEmpty) xx)
   => DatatypeInfo xx -> Editor (SOP I xx) Layout (SOP I xx)
 editorGeneric' (ADT _ _ (c :* Nil)) = constructorEditorFor c
 editorGeneric' (ADT _ _ cc) = editorSum above editors constructor where
@@ -404,17 +388,17 @@ newtype Tag = Tag String deriving (Eq, Ord)
 instance Show Tag where show (Tag t) = init $ toFieldLabel t
 
 constructorEditorsFor
-  :: forall xx . (All (All Editable `And` All Default) xx)
+  :: forall xx . (All (All Editable `And` All NonEmpty) xx)
   => NP ConstructorInfo xx -> [(String, Editor (SOP I xx) Layout (SOP I xx))]
 constructorEditorsFor cc =
   hcollapse $ hcliftA3 p (\c i p -> (constructorName c,) `mapKK` constructorEditorForUnion c i p) cc
     (injections  :: NP (Injection  (NP I) xx) xx)
     (projections :: NP (Projection (Compose Maybe (NP I)) xx) xx)
   where
-    p = Proxy @ (All Editable `And` All Default)
+    p = Proxy @ (All Editable `And` All NonEmpty)
 
 constructorEditorForUnion
-  :: (SListI xx, All Editable xs, All Default xs)
+  :: (SListI xx, All Editable xs, All NonEmpty xs)
   => ConstructorInfo xs
   -> Injection (NP I) xx xs
   -> Projection (Compose Maybe (NP I)) xx xs
@@ -425,7 +409,7 @@ constructorEditorForUnion (Record _ fields) inj prj = K $ composeEditor inj prj 
 
 composeEditor
   :: forall xss xs.
-    (SListI xss, All Default xs) =>
+    (SListI xss, All NonEmpty xs) =>
      Injection (NP I) xss xs
   -> Projection (Compose Maybe (NP I)) xss xs
   -> Editor (NP I xs) Layout (NP I xs)
@@ -433,7 +417,10 @@ composeEditor
 composeEditor (Fn inj) (Fn prj) = dimapE f (SOP . unK . inj)
   where
     f :: SOP I xss -> NP I xs
-    f = fromMaybe def . getCompose . prj . K . hexpand (Compose Nothing) . hmap (Compose . Just) . unSOP
+    f = fromMaybe def_np . getCompose . prj . K . hexpand (Compose Nothing) . hmap (Compose . Just) . unSOP
+
+def_np :: (All NonEmpty xs) => NP I xs
+def_np = hcpure (Proxy @ NonEmpty) gdef
 
 constructorEditorFor' :: (SListI xs, All Editable xs) => NP FieldInfo xs -> Editor (NP I xs) Layout (NP I xs)
 constructorEditorFor' fields = vertically $ hsequence $ hliftA Vertically $ fieldsEditor (hliftA (K . fieldName) fields)
@@ -463,5 +450,24 @@ toFieldLabel (fromAny -> Identifier (x:xx)) =
       onHead _ []     = []
 toFieldLabel _ = ""
 
-instance (Applicative f, All Default xs) => Default (NP f xs) where
-  def = hcpure (Proxy @ Default) (pure def)
+----------------------------------
+-- Generic default values
+
+class NonEmpty2 (xs :: [k])
+instance NonEmpty2 (x ': xs)
+
+class ( Generic a
+      , NonEmpty2 (Code a)
+      , All NonEmpty (Head (Code a))
+      ) =>
+      NonEmpty a
+instance ( Generic a
+         , NonEmpty2 (Code a)
+         , All NonEmpty (Head (Code a))
+         ) =>
+         NonEmpty a
+
+gdef :: forall a. (NonEmpty a) => a
+gdef = case sList :: SList (Code a) of
+               SCons -> to $ SOP $ Z $ hcpure (Proxy @ NonEmpty) (I gdef)
+               SNil  -> error "unreachable"
