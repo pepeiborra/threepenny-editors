@@ -1,3 +1,10 @@
+# 0.5.5 (2017-09-03)
+    * Dropped `Default` constraint requisite and `data-default` dependency.
+    * As a result, `editorGenericSimple` is replaced with `editorGeneric`.
+    * Improved haddocks and README.
+    * Cleaned up module export lists.
+    * Renamed Usage to Purpose and the Value constructor to Data. 
+    * Renamed `editorGenericSimpleBi` to `editorGenericBi`.
 # 0.5.4 (2017-08-28)
     * Generic derivation of `editor` for dual purpose datatypes.
 # 0.5.3 (2017-08-28)
