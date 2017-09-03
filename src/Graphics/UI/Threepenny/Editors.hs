@@ -173,7 +173,8 @@ data EditorWidgetFor a where
 -- | 'Purpose' is a kind for type level 'Field's
 data Purpose = Data | Edit
 
--- | Type level fields. Used to define dual purpose datatypes, example:
+-- | Type level fields. Used to define dual purpose datatype constructors, which can be instantiated to either store data or widgets.
+--   Example:
 --
 -- > data PersonF (purpose :: Purpose) = Person
 -- >   { education           :: Field purpose Education
