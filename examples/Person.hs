@@ -79,8 +79,8 @@ editorEducation = do
             Other _ -> "Other"
             _       -> show x
     editorSum beside
-      [ ("Basic", const Basic <$> editor)
-      , ("Intermediate", const Intermediate <$> editor)
+      [ ("Basic", const Basic <$> withSomeWidget editorUnit)
+      , ("Intermediate", const Intermediate <$> withSomeWidget editorUnit)
       , ("Other", dimapE (fromMaybe "" . getOther) Other someEditor)
       ]
       selector
