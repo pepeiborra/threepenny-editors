@@ -7,6 +7,7 @@
 {-# LANGUAGE PatternSynonyms            #-}
 {-# LANGUAGE PolyKinds                  #-}
 {-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE RecursiveDo                #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeApplications           #-}
@@ -85,10 +86,17 @@ module Graphics.UI.Threepenny.Editors
   , editorSelection
   , editorSum
   , editorJust
+  , editorString
+  , editorText
+  , editorCheckBox
+  , editorList
+  , editorCollection
+  , EditorCollection
   , someEditor
   , withSomeWidget
     -- ** Dual purpose datatypes
   , Field
+  , ListField
   , Purpose(..)
     -- ** Generic editors
   , editorGeneric
@@ -107,17 +115,19 @@ module Graphics.UI.Threepenny.Editors
   , Renderable(..)
   , renderGeneric
   , getLayoutGeneric
+    -- ** Representing empty values
+  , HasEmpty(..)
   ) where
 
 import           Data.Biapplicative
 import           Data.Char
 import           Data.Functor.Compose
 import           Data.Functor.Identity
+import           Data.HasEmpty
 import           Data.Maybe
 import qualified Data.Sequence                         as Seq
-import           Data.Text (Text)
+import           Data.Text                             (Text)
 import           Generics.SOP                          hiding (Compose)
-import           Generics.SOP.Constraint               hiding (Compose)
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Widgets
 import           Text.Casing
@@ -151,13 +161,25 @@ import           Graphics.UI.Threepenny.Editors.Types
 -- >   type EditorWidget (MyDatatype Data) = MyDatatype Edit
 -- >   editor = editorGenericBi
 --
-class Renderable (EditorWidget a) => Editable a where
+class (HasEmpty a, Renderable (EditorWidget a), Renderable (ListEditorWidget a)) => Editable a where
   -- | The widget type that realizes the editor. Defaults to 'Layout' and only needs to be manually defined when using custom renderables.
   type family EditorWidget a
+  -- | The widget type that realizes the editor for lists. Defaults to ''EditorCollection'.
+  type family ListEditorWidget a
   type EditorWidget a = Layout
+  type ListEditorWidget a = EditorCollection Int (EditorWidget a)
+
   editor :: Editor a (EditorWidget a) a
-  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All NonEmpty) (Code a)), EditorWidget a ~ Layout) => Editor a (EditorWidget a) a
+  listEditor :: Editor [a] (ListEditorWidget a) [a]
+
+  default editor :: (Generic a, HasDatatypeInfo a, (All (All Editable `And` All HasEmpty) (Code a)), EditorWidget a ~ Layout) => Editor a (EditorWidget a) a
   editor = editorGeneric
+
+  default listEditor :: (HasEmpty a, ListEditorWidget a ~ EditorCollection Int (EditorWidget a)) => Editor [a] (ListEditorWidget a) [a]
+  listEditor = fmap snd $ Editor $ \ba -> mdo
+    e <- create (editorList editor) (liftA2 (,) bIndex ba)
+    bIndex <- stepper Nothing (fst <$> edited e)
+    return e
 
 -- | Conceal the widget type of some 'Editor'
 withSomeWidget :: Renderable w => Editor a w b -> Editor a Layout b
@@ -181,20 +203,43 @@ data Purpose = Data | Edit
 -- >   { education           :: Field purpose Education
 -- >   , firstName, lastName :: Field purpose Text
 -- >   , age                 :: Field purpose (Maybe Int)
+-- >   }
 --
 -- > type Person = PersonF Data
 -- > type PersonEditor = PersonF Edit
 type family Field (purpose :: Purpose) a where
   Field 'Data  a = a
-  Field 'Edit a = EditorWidget a
+  Field 'Edit  a  = EditorWidget a
+
+-- | List version of 'Field'. Example:
+--
+-- > data PersonF (purpose :: Purpose) = Person
+-- >   { education           :: Field purpose Education
+-- >   , firstName, lastName :: Field purpose Text
+-- >   , age                 :: Field purpose (Maybe Int)
+-- >   , addresses           :: ListField purpose String
+-- >   }
+--
+-- > type Person = PersonF Data
+-- > type PersonEditor = PersonF Edit
+type family ListField (purpose :: Purpose) a where
+  ListField 'Data  a = [a]
+  ListField 'Edit  a  = ListEditorWidget a
 
 instance Editable () where
   type EditorWidget () = Element
   editor = editorUnit
 
-instance a ~ Char => Editable [a] where
-  type EditorWidget [a] = TextEntry
-  editor = editorString
+instance Editable Char where
+  type EditorWidget Char = TextEntry
+  type ListEditorWidget Char = TextEntry
+  editor = editorJust editorReadShow
+  listEditor = editorString
+
+instance Editable a => Editable [a] where
+  type EditorWidget [a] = ListEditorWidget a
+  editor = listEditor
+
 instance Editable Text where
   type EditorWidget Text = TextEntry
   editor = editorText
@@ -360,7 +405,7 @@ sequence_NP2 (x :** xs) = bipure (:*) (\x xx -> I x :* xx) <<*>> x <<*>> sequenc
 -----------------------------------------------}
 
 constructorEditorFor
-  :: (All Editable xs)
+  :: (All Editable xs, All HasEmpty xs)
   => ConstructorInfo xs
   -> Editor (SOP I '[xs]) Layout (SOP I '[xs])
 constructorEditorFor (Record _ fields) = dimapE (unZ . unSOP) (SOP . Z) $ constructorEditorFor' fields
@@ -373,13 +418,13 @@ constructorEditorFor Infix{} = dimapE (unZ . unSOP) (SOP . Z) someEditor
 --   field names if available.
 editorGeneric
   :: forall a .
-     (Generic a, HasDatatypeInfo a, (All (All Editable `And` All NonEmpty) (Code a)))
+     (Generic a, HasDatatypeInfo a, (All (All Editable `And` All HasEmpty) (Code a)))
   => Editor a Layout a
 editorGeneric = dimapE from to $ editorGeneric' (datatypeInfo(Proxy @ a))
 
 editorGeneric'
   :: forall xx.
-     (All (All Editable `And` All NonEmpty) xx)
+     (All (All Editable `And` All HasEmpty) xx)
   => DatatypeInfo xx -> Editor (SOP I xx) Layout (SOP I xx)
 editorGeneric' (ADT _ _ (c :* Nil)) = constructorEditorFor c
 editorGeneric' (ADT _ _ cc) = editorSum above editors constructor where
@@ -393,17 +438,17 @@ newtype Tag = Tag String deriving (Eq, Ord)
 instance Show Tag where show (Tag t) = init $ toFieldLabel t
 
 constructorEditorsFor
-  :: forall xx . (All (All Editable `And` All NonEmpty) xx)
+  :: forall xx . (All (All Editable `And` All HasEmpty) xx)
   => NP ConstructorInfo xx -> [(String, Editor (SOP I xx) Layout (SOP I xx))]
 constructorEditorsFor cc =
   hcollapse $ hcliftA3 p (\c i p -> (constructorName c,) `mapKK` constructorEditorForUnion c i p) cc
     (injections  :: NP (Injection  (NP I) xx) xx)
     (projections :: NP (Projection (Compose Maybe (NP I)) xx) xx)
   where
-    p = Proxy @ (All Editable `And` All NonEmpty)
+    p = Proxy @ (All Editable `And` All HasEmpty)
 
 constructorEditorForUnion
-  :: (SListI xx, All Editable xs, All NonEmpty xs)
+  :: (SListI xx, All Editable xs, All HasEmpty xs)
   => ConstructorInfo xs
   -> Injection (NP I) xx xs
   -> Projection (Compose Maybe (NP I)) xx xs
@@ -414,24 +459,24 @@ constructorEditorForUnion (Record _ fields) inj prj = K $ composeEditor inj prj 
 
 composeEditor
   :: forall xss xs.
-    (SListI xss, All NonEmpty xs) =>
+    (SListI xss, All HasEmpty xs) =>
      Injection (NP I) xss xs
   -> Projection (Compose Maybe (NP I)) xss xs
   -> Editor (NP I xs) Layout (NP I xs)
   -> Editor (SOP I xss) Layout (SOP I xss)
 composeEditor (Fn inj) (Fn prj) = dimapE f (SOP . unK . inj)
   where
-    f :: SOP I xss -> NP I xs
-    f = fromMaybe def_np . getCompose . prj . K . hexpand (Compose Nothing) . hmap (Compose . Just) . unSOP
+    f = fromMaybe emptyValue . getCompose . prj . K . hexpand (Compose Nothing) . hmap (Compose . Just) . unSOP
 
-def_np :: (All NonEmpty xs) => NP I xs
-def_np = hcpure (Proxy @ NonEmpty) gdef
+instance HasEmpty a => HasEmpty (I a) where emptyValue = I emptyValue
+instance All HasEmpty xs => HasEmpty (NP I xs) where
+  emptyValue = hcpure (Proxy @ HasEmpty) emptyValue
 
 constructorEditorFor' :: (SListI xs, All Editable xs) => NP FieldInfo xs -> Editor (NP I xs) Layout (NP I xs)
 constructorEditorFor' fields = vertically $ hsequence $ hliftA Vertically $ fieldsEditor (hliftA (K . fieldName) fields)
 
 -- Tuple editor without fields
-instance All Editable xs => Editable (NP I xs) where
+instance (All Editable xs, All HasEmpty xs) => Editable (NP I xs) where
   type EditorWidget (NP I xs) = Layout
   editor = horizontally $ hsequence $ hliftA Horizontally tupleEditor
 
@@ -454,25 +499,3 @@ toFieldLabel (fromAny -> Identifier (x:xx)) =
       onHead f (x:xx) = f x : xx
       onHead _ []     = []
 toFieldLabel _ = ""
-
-----------------------------------
--- Generic default values
-
-class NonEmpty2 (xs :: [k])
-instance NonEmpty2 (x ': xs)
-
-class ( Generic a
-      , NonEmpty2 (Code a)
-      , All NonEmpty (Head (Code a))
-      ) =>
-      NonEmpty a
-instance ( Generic a
-         , NonEmpty2 (Code a)
-         , All NonEmpty (Head (Code a))
-         ) =>
-         NonEmpty a
-
-gdef :: forall a. (NonEmpty a) => a
-gdef = case sList :: SList (Code a) of
-               SCons -> to $ SOP $ Z $ hcpure (Proxy @ NonEmpty) (I gdef)
-               SNil  -> error "unreachable"

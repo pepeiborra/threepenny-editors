@@ -43,9 +43,6 @@ data PersonF (purpose :: Purpose) = Person
 type Person = PersonF Data
 type PersonEditor = PersonF Edit
 
-defPerson :: Person
-defPerson = Person Basic "First" "Last" Nothing (Brexiteer False) Single
-
 instance Validable Person where
   validate Person{..} = fromWarnings $
     [ "First name cannot be null" | T.null firstName ] ++
@@ -59,6 +56,7 @@ data LegalStatus
   | Widowed
   deriving (Bounded, Enum, Eq, Ord, Show, Generic)
 
+instance HasEmpty LegalStatus
 instance Editable LegalStatus
 instance SOP.HasDatatypeInfo LegalStatus
 instance SOP.Generic LegalStatus
@@ -87,19 +85,22 @@ editorEducation = do
       ]
       selector
 
+instance HasEmpty Education
 instance Editable Education
 instance SOP.HasDatatypeInfo Education
 instance SOP.Generic Education
 
 newtype Brexiteer = Brexiteer Bool deriving (Eq, Show, Ord, Generic)
 
+instance HasEmpty Brexiteer
 instance Editable Brexiteer where editor = editorGeneric
 instance SOP.HasDatatypeInfo Brexiteer
 instance SOP.Generic Brexiteer
 
 deriving instance Show Person
 
-instance Editable Person
+instance HasEmpty Person
+instance Editable Person where editor = editorGeneric
 
 -- | An editor for 'Person' values that uses the 'Columns' layout builder
 editorPersonColumns :: Editor Person Columns Person
@@ -131,7 +132,12 @@ instance Renderable PersonEditor where
     a ||| b = getLayout a `beside` getLayout b
     a === b = getLayout a `above`  getLayout b
 
+-- -------
 -- Driver
+
+defPerson :: Person
+defPerson = Person Basic (T.pack "First") (T.pack "Last") Nothing (Brexiteer False) Single
+
 setup :: Window -> UI ()
 setup w = void $ mdo
   _ <- return w # set title "Threepenny editors example"

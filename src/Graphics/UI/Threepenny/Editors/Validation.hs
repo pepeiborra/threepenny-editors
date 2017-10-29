@@ -2,7 +2,7 @@
 
    @
      -- update only if valid
-     value <- accumB def updateIfValid userEdits
+     value <- accumB emptyValue updateIfValid userEdits
 
      -- collect validation warnings
      warnings <- stepper ok validate userEdits

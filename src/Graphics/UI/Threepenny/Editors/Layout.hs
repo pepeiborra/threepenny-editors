@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TemplateHaskell      #-}
 {-# LANGUAGE TypeOperators        #-}
 {-# LANGUAGE FlexibleInstances    #-}
 {-# LANGUAGE NamedFieldPuns       #-}
@@ -32,6 +35,7 @@ module Graphics.UI.Threepenny.Editors.Layout
 
 import           Data.Biapplicative
 import           Data.Bifoldable
+import           Data.HasEmpty
 import           Data.Foldable                   (length)
 import           Data.Map.Strict                 (Map)
 import qualified Data.Map.Strict                 as Map
@@ -39,8 +43,9 @@ import           Data.Maybe
 import           Data.Monoid
 import           Data.Sequence                   (Seq)
 import qualified Data.Sequence                   as Seq
+import           Generics.SOP.TH
 import           GHC.Exts                        (IsList (..))
-import           Graphics.UI.Threepenny.Core     as UI
+import           Graphics.UI.Threepenny.Core     as UI hiding (empty)
 import           Graphics.UI.Threepenny.Elements
 import           Graphics.UI.Threepenny.Widgets
 
@@ -67,12 +72,13 @@ instance Renderable (ListBox a) where
 instance Renderable String where
   render = string
 
+-- | A rathe limited, grid layout builder, probably not fit for general purpose use yet.
 data Layout
   = Grid (Seq (Seq Layout)) -- ^ A non empty list of rows, where all the rows are assumed to have the same length
   | Cell (Maybe (UI Element))
 
-pattern Empty :: Layout
-pattern Empty = Cell Nothing
+pattern HasEmpty :: Layout
+pattern HasEmpty = Cell Nothing
 
 pattern Single :: UI Element -> Layout
 pattern Single x = Cell (Just x)
@@ -119,7 +125,7 @@ vertical :: Renderable w => w -> Vertical
 vertical = Vertical . getLayout
 
 instance Monoid Vertical where
-  mempty = Vertical Empty
+  mempty = Vertical HasEmpty
   mappend (Vertical a) (Vertical b)= Vertical $ above a b
 
 instance Renderable Vertical where
@@ -132,7 +138,7 @@ horizontal :: Renderable w => w -> Horizontal
 horizontal = Horizontal . getLayout
 
 instance Monoid Horizontal where
-  mempty = Horizontal Empty
+  mempty = Horizontal HasEmpty
   mappend (Horizontal a) (Horizontal b)= Horizontal $ beside a b
 
 instance Renderable Horizontal where
@@ -158,7 +164,7 @@ layoutColumns :: Columns -> Layout
 layoutColumns (Next l) = l
 layoutColumns (Break l) = l
 layoutColumns Columns{acc}
-  | Map.null acc = Empty
+  | Map.null acc = HasEmpty
   | otherwise =
     getLayout $
     foldMap Vertical
@@ -199,6 +205,8 @@ instance Biapplicative (|*|) where
 instance (Renderable a, Renderable b) => Renderable (a |*| b) where
   getLayout (a :|*| b) = getLayout a `beside` getLayout b
 
+instance (HasEmpty a, HasEmpty b) => HasEmpty (a |*| b) where emptyValue = emptyValue :|*| emptyValue
+
 -- | Type level Vertical layouts
 data a -*- b = a :-*- b
 
@@ -214,3 +222,8 @@ instance Biapplicative (-*-) where
 
 instance (Renderable a, Renderable b) => Renderable (a -*- b) where
   getLayout (a :-*- b) = getLayout a `above` getLayout b
+
+instance (HasEmpty a, HasEmpty b) => HasEmpty (a -*- b) where emptyValue = emptyValue :-*- emptyValue
+
+deriveGeneric ''(|*|)
+deriveGeneric ''(-*-)

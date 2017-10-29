@@ -40,6 +40,7 @@ dependencies:
 library:
   source-dirs: 	src
   exposed-modules:
+    - Data.HasEmpty
     - Graphics.UI.Threepenny.Editors
     - Graphics.UI.Threepenny.Editors.Layout
     - Graphics.UI.Threepenny.Editors.Utils
@@ -51,6 +52,19 @@ executables:
     source-dirs:  examples
     main: Person.hs
     ghc-options: -main-is Person
+    other-modules: []
+    when:
+      condition: flag(buildExamples)
+      then:
+        dependencies:
+          - threepenny-editors
+      else: 
+        buildable: False
+
+  person2: &example
+    source-dirs:  examples
+    main: Person2.hs
+    ghc-options: -main-is Person2
     other-modules: []
     when:
       condition: flag(buildExamples)
@@ -77,6 +91,19 @@ executables:
     <<: *example
     main: CRUD.hs
     ghc-options: -main-is CRUD
+    when:
+      condition: flag(buildExamples)
+      then:
+        dependencies:
+          - threepenny-editors
+          - containers
+      else: 
+        buildable: False
+
+  crud2:
+    <<: *example
+    main: CRUD2.hs
+    ghc-options: -main-is CRUD2
     when:
       condition: flag(buildExamples)
       then:

@@ -15,7 +15,15 @@
     A more sophisticated approach would use incremental updates.
 ------------------------------------------------------------------------------}
 {-# LANGUAGE RecursiveDo          #-}
-module CRUD (main) where
+module CRUD
+  ( main
+  , Database
+  , DatabaseKey
+  , create
+  , update
+  , delete
+  , lookup
+  ) where
 import           Control.Monad                  (void)
 import           Data.List                      (isPrefixOf)
 import qualified Data.Map                       as Map
@@ -135,6 +143,8 @@ type DataItemEditor = DataItemDual Edit
 
 showDataItem :: DataItem -> String
 showDataItem DataItem{..} = lastName ++ ", " ++ firstName
+
+instance HasEmpty DataItem
 
 instance Editable DataItem where
   type EditorWidget DataItem = DataItemEditor

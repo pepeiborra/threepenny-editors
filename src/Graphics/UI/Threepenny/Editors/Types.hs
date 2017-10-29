@@ -1,6 +1,8 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DataKinds           #-}
 {-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE PatternSynonyms     #-}
+{-# LANGUAGE RecursiveDo         #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -36,17 +38,31 @@ module Graphics.UI.Threepenny.Editors.Types
   , editorSelection
   , editorSum
   , editorJust
+  , EditorCollection(..)
+  , editorCollection
+  , editorList
+  , EditorCollectionConfig(..)
+  , defaultEditorCollectionConfig
+  -- ** Representation of empty values
+  , HasEmpty(..)
   ) where
 
+import           Control.Monad
 import           Data.Biapplicative
-import           Data.Coerce
+import           Data.Maybe
+import           Data.HasEmpty
+import qualified Data.Foldable as F
 import           Data.Functor.Compose
 import           Data.Functor.Identity
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Set (Set)
+import qualified Data.Set as Set
 import           Data.Profunctor
 import           Data.Text (Text)
 import qualified Data.Text as Text
 import           Graphics.UI.Threepenny.Attributes
-import           Graphics.UI.Threepenny.Core           as UI
+import           Graphics.UI.Threepenny.Core           as UI hiding (empty)
 import           Graphics.UI.Threepenny.Editors.Layout
 import           Graphics.UI.Threepenny.Editors.Utils
 import           Graphics.UI.Threepenny.Elements
@@ -104,9 +120,10 @@ bimapEditor :: (el -> el') -> (b -> b') -> Editor a el b -> Editor a el' b'
 bimapEditor g h = Editor . fmap (fmap (bimap g h)) . create
 
 dimapE :: (a' -> a) -> (b -> b') -> Editor a el b -> Editor a' el b'
-dimapE g h (Editor f) = Editor $ dimap (fmap g) (fmapUIGW h) f
+dimapE g h  = unCoer . dimap (fmap g) h . coer
   where
-    fmapUIGW = coerce (fmap @ (Compose UI _))
+    coer   = Star . (Compose .) . create
+    unCoer = Editor . fmap getCompose . runStar
 
 applyE :: (el1 -> el2 -> el) -> Editor in_ el1 (a -> b) -> Editor in_ el2 a -> Editor in_ el b
 applyE combineElements a b = Editor $ \s -> do
@@ -273,3 +290,102 @@ editorSum combineLayout options selector = Editor $ \ba -> do
 
 editorIdentity :: Editor a el a -> Editor (Identity a) el (Identity a)
 editorIdentity = dimapE runIdentity Identity
+
+--------------------------
+-- EditorCollection
+
+data EditorCollection k w = EditorCollection
+  { selector :: ListBox k
+  , add, remove :: Element
+  , selected :: w
+  }
+
+instance Renderable w => Renderable (EditorCollection k w) where
+  render EditorCollection{..} =
+    column
+    [row [ element selector, element add, element remove]
+    ,render selected]
+
+data EditorCollectionConfig k v = EditorCollectionConfig
+  { eccNewKey      :: Behavior k                 -- ^ Current value to use for creating a new key
+  , eccAfterDelKey :: Behavior (Maybe k)         -- ^ Current value to use if the selected key is deleted
+  , eccTemplate    :: v                          -- ^ Value to use for creating new items
+  , eccOptions     :: Behavior (Set k)           -- ^ Currently user select able keys
+  , eccDisplay     :: Behavior (k -> UI Element) -- ^ How to render a key
+  }
+
+defaultEditorCollectionConfig
+  :: (Enum k, Ord k, Show k, HasEmpty v)
+  => Behavior (Maybe k, Map k v) -> EditorCollectionConfig k v
+defaultEditorCollectionConfig db = EditorCollectionConfig
+  { eccTemplate = emptyValue
+  , eccOptions  = options
+  , eccDisplay  = pure (UI.string . show)
+  , eccNewKey   = maybe (toEnum 0) succ . Set.lookupMax <$> options
+  , eccAfterDelKey = deletedKey <$> (fst <$> db) <*> options
+  }
+  where
+    options = Map.keysSet . snd <$> db
+
+    deletedKey Nothing  _  = Nothing
+    deletedKey (Just k) kk = Set.lookupLT k kk `mplus` Set.lookupGT k kk
+
+-- | A barebones editor for collections of editable items.
+--   Displays an index selector, add and delete buttons, and an editor for the selected item.
+--   Limitations:
+--     - Won't work with recursive data structures, due to the lack of FRP switch.
+editorCollection
+  :: forall k v w.
+     (Ord k, Renderable w)
+  => (Behavior (Maybe k, Map k v) -> EditorCollectionConfig k v)
+  -> Editor v w v
+  -> Editor (Maybe k, Map k v) (EditorCollection k w) (Maybe k, Map k v)
+editorCollection mkConfig editorOne = Editor $ \(ba :: Behavior (Maybe k, Map k v)) -> mdo
+  let EditorCollectionConfig{..} = mkConfig ba
+      (selectedKey, db) = (fst <$> ba, snd <$> ba)
+  sel  <- create (editorSelection (Set.toList <$> eccOptions) eccDisplay) (fst <$> ba)
+  one  <- create editorOne $ (\(k, db) -> fromMaybe eccTemplate (k >>= (`Map.lookup` db))) <$> ba
+  addB <- button #+ [string "+"]
+  remB <- button #+ [string "-"]
+  let insert i = Map.insert i eccTemplate
+      editsDb = head <$> unions
+                [ replace <$> ba <@> edited one
+                , insert  <$> eccNewKey <*> db <@ click addB
+                , delete  <$> ba <@ click remB
+                ]
+      editsKey = head <$> unions
+                [ edited sel
+                , Just <$> eccNewKey <@ click addB
+                , eccAfterDelKey <@ click remB
+                ]
+      tids = (,) <$> tidings selectedKey editsKey <*> tidings db editsDb
+  return $ GenericWidget tids (EditorCollection (widgetControl sel) addB remB (widgetControl one))
+ where
+   replace (Just i,xx) x = Map.alter (const $ Just x) i xx
+   replace (Nothing,x) _ = x
+   delete  (Just i,xx)   = Map.delete i xx
+   delete  (_,xx)        = xx
+
+-- | A barebones editor for collections of editable items.
+--   Displays an index selector, add and delete buttons, and an editor for the selected item.
+--   Limitations:
+--     - Won't work with recursive data structures, due to the lack of FRP switch.
+editorList
+  :: (HasEmpty a, Renderable w)
+  => Editor a w a -> Editor (Maybe Int, [a]) (EditorCollection Int w) (Maybe Int, [a])
+editorList e =
+  dimapE (second (Map.fromAscList . zip [0 ..])) (second F.toList) $
+  editorCollection config e
+  where
+    (<&>) = flip (<$>)
+    infixl 1 <&>
+    config ba =
+      (defaultEditorCollectionConfig ba)
+      { eccAfterDelKey =
+        ba <&> (\(i,m) ->
+             i >>= (\i ->
+                      if Map.member (i + 1) m
+                      then return i
+                      else let i' = max 0 (i - 1)
+                           in guard(i'>=0) >> return i'))
+      }

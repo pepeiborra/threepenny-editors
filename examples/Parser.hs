@@ -56,7 +56,7 @@ pMode = do
 pModeEditor :: Editor ParseMode Layout ParseMode
 pModeEditor =
   (\f l i  -> defaultParseMode{parseFilename=f, baseLanguage=l, ignoreLanguagePragmas=i})
-    <$> field "Filename" parseFilename editor
+    <$> field "Filename" parseFilename editorString
     -*- field "Language" baseLanguage (editorJust $ editorSelection (pure knownLanguages) (pure (string . show)))
     -*- field "Ignore pragmas" ignoreLanguagePragmas editor
 
