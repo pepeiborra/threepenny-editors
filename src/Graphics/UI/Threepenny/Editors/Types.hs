@@ -3,7 +3,6 @@
 {-# LANGUAGE PatternSynonyms     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeApplications    #-}
 {-# LANGUAGE ViewPatterns        #-}
 {-# OPTIONS_GHC -Wno-name-shadowing     #-}
 {-# OPTIONS_GHC -Wno-duplicate-exports  #-}
@@ -30,6 +29,7 @@ module Graphics.UI.Threepenny.Editors.Types
   , editorUnit
   , editorIdentity
   , editorString
+  , editorText
   , editorCheckBox
   , editorReadShow
   , editorEnumBounded
@@ -43,6 +43,8 @@ import           Data.Coerce
 import           Data.Functor.Compose
 import           Data.Functor.Identity
 import           Data.Profunctor
+import           Data.Text (Text)
+import qualified Data.Text as Text
 import           Graphics.UI.Threepenny.Attributes
 import           Graphics.UI.Threepenny.Core           as UI
 import           Graphics.UI.Threepenny.Editors.Layout
@@ -212,6 +214,9 @@ editorString = Editor $ \b -> do
       _ <- runUI w $ set value initialValue (element t)
       return ()
     return $ GenericWidget (userText t) t
+
+editorText :: Editor Text TextEntry Text
+editorText = dimapE Text.unpack Text.pack editorString
 
 editorReadShow :: (Read a, Show a) => Editor (Maybe a) TextEntry (Maybe a)
 editorReadShow = Editor $ \b -> do

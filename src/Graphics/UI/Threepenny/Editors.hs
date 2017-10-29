@@ -115,6 +115,7 @@ import           Data.Functor.Compose
 import           Data.Functor.Identity
 import           Data.Maybe
 import qualified Data.Sequence                         as Seq
+import           Data.Text (Text)
 import           Generics.SOP                          hiding (Compose)
 import           Generics.SOP.Constraint               hiding (Compose)
 import           Graphics.UI.Threepenny.Core           as UI
@@ -178,7 +179,7 @@ data Purpose = Data | Edit
 --
 -- > data PersonF (purpose :: Purpose) = Person
 -- >   { education           :: Field purpose Education
--- >   , firstName, lastName :: Field purpose String
+-- >   , firstName, lastName :: Field purpose Text
 -- >   , age                 :: Field purpose (Maybe Int)
 --
 -- > type Person = PersonF Data
@@ -194,6 +195,9 @@ instance Editable () where
 instance a ~ Char => Editable [a] where
   type EditorWidget [a] = TextEntry
   editor = editorString
+instance Editable Text where
+  type EditorWidget Text = TextEntry
+  editor = editorText
 
 instance Editable Bool where
   type EditorWidget Bool = Element

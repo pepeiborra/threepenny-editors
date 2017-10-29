@@ -15,6 +15,8 @@
 module Person (main) where
 import           Control.Monad
 import           Data.Maybe
+import           Data.Text (Text)
+import qualified Data.Text as T
 import qualified Generics.SOP                              as SOP
 import           Generics.SOP.TH
 import           GHC.Generics                              (Generic)
@@ -31,7 +33,7 @@ main = startGUI defaultConfig setup
 -- | A dual purpose data type that doubles as a value and as a widget depending on the type argument.
 data PersonF (purpose :: Purpose) = Person
   { education           :: Field purpose Education
-  , firstName, lastName :: Field purpose String
+  , firstName, lastName :: Field purpose Text
   , age                 :: Field purpose (Maybe Int)
   , brexiteer           :: Field purpose Brexiteer
   , status              :: Field purpose LegalStatus
@@ -46,8 +48,8 @@ defPerson = Person Basic "First" "Last" Nothing (Brexiteer False) Single
 
 instance Validable Person where
   validate Person{..} = fromWarnings $
-    [ "First name cannot be null" | null firstName ] ++
-    [ "Last name cannot be null"  | null lastName ] ++
+    [ "First name cannot be null" | T.null firstName ] ++
+    [ "Last name cannot be null"  | T.null lastName ] ++
     [ "Age must be a natural number" | Just x <- [age], x <= 0]
 
 data LegalStatus
@@ -64,10 +66,10 @@ instance SOP.Generic LegalStatus
 data Education
   = Basic
   | Intermediate
-  | Other String
+  | Other Text
   deriving (Eq, Ord, Read, Show, Generic)
 
-getOther :: Education -> Maybe String
+getOther :: Education -> Maybe Text
 getOther (Other s) = Just s
 getOther _         = Nothing
 
@@ -81,7 +83,7 @@ editorEducation = do
     editorSum beside
       [ ("Basic", const Basic <$> withSomeWidget editorUnit)
       , ("Intermediate", const Intermediate <$> withSomeWidget editorUnit)
-      , ("Other", dimapE (fromMaybe "" . getOther) Other someEditor)
+      , ("Other", dimapE (fromMaybe mempty . getOther) Other someEditor)
       ]
       selector
 

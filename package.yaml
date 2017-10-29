@@ -35,6 +35,7 @@ dependencies:
     - profunctors
     - threepenny-gui > 0.7
     - casing
+    - text
 
 library:
   source-dirs: 	src
