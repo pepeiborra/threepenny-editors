@@ -19,12 +19,31 @@ cache:
   directories:
   - $HOME/.stack
 
-# Ensure necessary system libraries are present
-addons:
-  apt:
-    packages:
-      - libgmp-dev
+matrix:
+  include:
+  - env: ARGS="--resolver=lts-9"
+    compiler: ": #stack 8.0.2"
+    addons: {apt: {packages: [libgmp-dev]}}
 
+  - env: BUILD=stack ARGS="--resolver lts-11"
+    compiler: ": #stack 8.2.2"
+    addons: {apt: {packages: [libgmp-dev]}}
+
+  - env: BUILD=stack ARGS="--resolver lts-12"
+    compiler: ": #stack 8.4.3"
+    addons: {apt: {packages: [libgmp-dev]}}
+
+  # Nightly builds are allowed to fail
+  - env: BUILD=stack ARGS="--resolver nightly"
+    compiler: ": #stack nightly"
+    addons: {apt: {packages: [libgmp-dev]}}
+
+  # Build on macOS in addition to Linux
+  - env: BUILD=stack ARGS=""
+    compiler: ": #stack default osx"
+    os: osx
+
+  
 before_install:
 # Download and unpack the stack executable
 - mkdir -p ~/.local/bin
@@ -33,8 +52,8 @@ before_install:
 
 install:
 # Build dependencies
-- stack --no-terminal --install-ghc test --only-dependencies
+- stack --no-terminal --install-ghc $ARGS test --bench --only-dependencies
 
 script:
 # Build the package, its tests, and its docs and run the tests
-- stack --no-terminal test --haddock --no-haddock-deps
+- stack --no-terminal $ARGS test --haddock --no-haddock-deps 
