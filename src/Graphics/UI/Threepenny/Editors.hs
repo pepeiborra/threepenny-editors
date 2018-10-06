@@ -1,4 +1,3 @@
-{-# LANGUAGE DataKinds                  #-}
 {-# LANGUAGE DefaultSignatures          #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
@@ -12,6 +11,7 @@
 {-# LANGUAGE TupleSections              #-}
 {-# LANGUAGE TypeApplications           #-}
 {-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeInType                 #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE UndecidableInstances       #-}
 {-# LANGUAGE UndecidableSuperClasses    #-}
@@ -124,6 +124,7 @@ import           Data.Char
 import           Data.Functor.Compose
 import           Data.Functor.Identity
 import           Data.HasEmpty
+import           Data.Kind
 import           Data.Maybe
 import qualified Data.Sequence                         as Seq
 import           Data.Text                             (Text)
@@ -391,18 +392,18 @@ fieldsEditorBi = go id sList where
   go _ SNil = Nil2
   go f SCons = bimap EditorWidgetFor id (dimapE (unI . hd . f) id editor) :** go (tl . f) sList
 
+{----------------------------------------------
+  Generic derivations for Applicative Editables
+-----------------------------------------------}
+
 -- A bifunctorial version of NP, used to sequence the applicative effects
-data NP2 :: (k -> *) -> (k -> k -> *) -> [k] -> * where
+data NP2 :: (k -> *) -> (* -> k -> *) -> [k] -> * where
   Nil2 :: NP2 ann f '[]
   (:**) :: f (ann x) x -> NP2 ann f xs -> NP2 ann f (x ': xs)
 
 sequence_NP2 :: Biapplicative f => NP2 w f xs -> f (NP w xs) (NP I xs)
 sequence_NP2 Nil2 = bipure Nil Nil
 sequence_NP2 (x :** xs) = bipure (:*) (\x xx -> I x :* xx) <<*>> x <<*>> sequence_NP2 xs
-
-{----------------------------------------------
-  Generic derivations for Applicative Editables
------------------------------------------------}
 
 constructorEditorFor
   :: (All Editable xs, All HasEmpty xs)

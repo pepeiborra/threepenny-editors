@@ -40,7 +40,6 @@ import           Data.Foldable                   (length)
 import           Data.Map.Strict                 (Map)
 import qualified Data.Map.Strict                 as Map
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Sequence                   (Seq)
 import qualified Data.Sequence                   as Seq
 import           Generics.SOP.TH
@@ -124,9 +123,11 @@ newtype Vertical = Vertical { getVertical :: Layout}
 vertical :: Renderable w => w -> Vertical
 vertical = Vertical . getLayout
 
+instance Semigroup Vertical where
+  Vertical a <> Vertical b = Vertical $ above a b
+
 instance Monoid Vertical where
   mempty = Vertical HasEmpty
-  mappend (Vertical a) (Vertical b)= Vertical $ above a b
 
 instance Renderable Vertical where
   getLayout = getVertical
@@ -137,9 +138,11 @@ newtype Horizontal = Horizontal { getHorizontal :: Layout}
 horizontal :: Renderable w => w -> Horizontal
 horizontal = Horizontal . getLayout
 
+instance Semigroup Horizontal where
+  Horizontal a <> Horizontal b = Horizontal $ beside a b
+
 instance Monoid Horizontal where
   mempty = Horizontal HasEmpty
-  mappend (Horizontal a) (Horizontal b)= Horizontal $ beside a b
 
 instance Renderable Horizontal where
   getLayout = getHorizontal
@@ -178,16 +181,18 @@ layoutColumns Columns{acc}
 
 instance Monoid Columns where
   mempty = Columns (-1,-1) mempty
-  mappend (Next a) (Columns (r,c) g) = let xy = (r+1, max 0 c) in Columns xy (Map.insert xy a g)
-  mappend (Break a) (Columns (_,c) g) = let xy = (0, c + 1) in Columns xy (Map.insert xy a g)
+
+instance Semigroup Columns where
+  Next a <> Columns (r,c) g = let xy = (r+1, max 0 c) in Columns xy (Map.insert xy a g)
+  Break a <> Columns (_,c) g = let xy = (0, c + 1) in Columns xy (Map.insert xy a g)
   -- merging two columns should not ever happen, but if it does we will merge the columns and Break into a new one
-  mappend (Columns (r,c) g) (Columns (r',_) g') = Columns (r+r'+1, -1) (Map.union g (Map.mapKeys (\(x,y) -> (x+r+1,y+c+1)) g'))
-  mappend c@Columns{} other = mappend other c
+  Columns (r,c) g <> Columns (r',_) g' = Columns (r+r'+1, -1) (Map.union g (Map.mapKeys (\(x,y) -> (x+r+1,y+c+1)) g'))
+  c@Columns{} <> other = mappend other c
   -- Next and Break merges should not arise in practice either
-  mappend (Next  a) (Next  b) = Columns ( 1,0) (Map.fromList [((0,0),a), ((1,0),b)])
-  mappend (Next  a) (Break b) = Columns ( 0,1) (Map.fromList [((0,0),a), ((0,1),b)])
-  mappend (Break a) (Break b) = mappend (Next a) (Break b)
-  mappend (Break a) (Next  b) = mappend (Next a) (Next  b)
+  Next  a <> Next  b = Columns ( 1,0) (Map.fromList [((0,0),a), ((1,0),b)])
+  Next  a <> Break b = Columns ( 0,1) (Map.fromList [((0,0),a), ((0,1),b)])
+  Break a <> Break b = mappend (Next a) (Break b)
+  Break a <> Next  b = mappend (Next a) (Next  b)
 
 -- | Type level Horizontal layouts
 data a |*| b = a :|*| b
