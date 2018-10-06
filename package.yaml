@@ -33,6 +33,7 @@ dependencies:
     - containers
     - generics-sop
     - profunctors
+    - semigroups
     - threepenny-gui > 0.7
     - casing
     - text
