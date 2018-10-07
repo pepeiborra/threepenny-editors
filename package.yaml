@@ -30,9 +30,10 @@ flags:
 dependencies:
     - base >= 4.7 && < 5
     - bifunctors
-    - containers
+    - containers >= 0.5.9
     - generics-sop
     - profunctors
+    - semigroups
     - threepenny-gui > 0.7
     - casing
     - text

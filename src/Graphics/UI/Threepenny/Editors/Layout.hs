@@ -33,20 +33,30 @@ module Graphics.UI.Threepenny.Editors.Layout
   , type (-*-)(..)
   ) where
 
+import           Control.Monad
 import           Data.Biapplicative
 import           Data.Bifoldable
 import           Data.HasEmpty
-import           Data.Foldable                   (length)
+import           Data.Foldable                   (Foldable(foldMap))
+import           Data.Function
+import           Data.Functor
+import           Data.List
 import           Data.Map.Strict                 (Map)
 import qualified Data.Map.Strict                 as Map
 import           Data.Maybe
+import           Data.Monoid                     (Monoid(..))
+import           Data.Ord
+import           Data.Semigroup
 import           Data.Sequence                   (Seq)
 import qualified Data.Sequence                   as Seq
+import           Data.Tuple
 import           Generics.SOP.TH
 import           GHC.Exts                        (IsList (..))
 import           Graphics.UI.Threepenny.Core     as UI hiding (empty)
 import           Graphics.UI.Threepenny.Elements
 import           Graphics.UI.Threepenny.Widgets
+import           Text.Show
+import           Prelude(Num(..), Int, String, otherwise)
 
 -- | Closely related to 'Widget', this class represents types that can be rendered to an 'Element', either directly or via 'Layout'.
 class Renderable w where
@@ -128,6 +138,7 @@ instance Semigroup Vertical where
 
 instance Monoid Vertical where
   mempty = Vertical HasEmpty
+  mappend = (<>)
 
 instance Renderable Vertical where
   getLayout = getVertical
@@ -143,6 +154,7 @@ instance Semigroup Horizontal where
 
 instance Monoid Horizontal where
   mempty = Horizontal HasEmpty
+  mappend = (<>)
 
 instance Renderable Horizontal where
   getLayout = getHorizontal
@@ -181,6 +193,7 @@ layoutColumns Columns{acc}
 
 instance Monoid Columns where
   mempty = Columns (-1,-1) mempty
+  mappend = (<>)
 
 instance Semigroup Columns where
   Next a <> Columns (r,c) g = let xy = (r+1, max 0 c) in Columns xy (Map.insert xy a g)
