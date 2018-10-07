@@ -1,3 +1,8 @@
+# 0.5.6.1 (2018-10-07)
+    * Semigroup => Monoid
+# 0.5.6 (2017-10-29)
+    * Add editors for collections
+    * Add an editor for `Text`
 # 0.5.5 (2017-09-03)
     * Dropped `Default` constraint requisite and `data-default` dependency.
     * As a result, `editorGenericSimple` is replaced with `editorGeneric`.
